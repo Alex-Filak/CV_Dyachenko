@@ -49,11 +49,35 @@ class PointsCloud:
 
 
     @classmethod
-    #def from_file() - create points cloud from file .txt or .xyz
 
-    #def to_file() - write points cloud in file
+    # __________ FILE METHODS __________
 
-    #def copy() - create copy of point cloud
+    def from_file(cls, 
+                    filepath: str, 
+                    spatial_dims: int = 3,
+                    field_names: Optional[List[str]] = None,
+                    field_dimensions: Optional[List[int]] = None) -> 'PointCloud':
+
+        try:
+            data = np.loadtxt(file_path)
+
+        except Exception as e:
+            raise IOError(f"Failed to load file {file_path}: {str(e)}")
+
+
+        return cls(data, spatial_dims, field_names,field_dimensions) 
+
+    def to_file(self, file_path: str):
+        np.savetxt(file_path, sefl.data, fmt='%.6f')
+
+    def copy(self):
+        return PointsCloud(
+            self.data.copy(),
+            spatial_dims = self.spatial_dims,
+            field_names = self.field_names,
+            field_dimensions = self.field_dimension
+            )
+        
 
 
     # __________ ACCESS METHODS __________
