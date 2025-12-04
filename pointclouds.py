@@ -82,11 +82,40 @@ class PointsCloud:
 
     # __________ ACCESS METHODS __________
 
-    #def get_spatial() - get spatial coordinates
+    def get_spatial(self) -> np.ndarray:
+        return self.data[:, :self.spatial_dims]
 
-    #def get_field() - get field value by name 
+    def get_field(self, field_name: str) -> np.ndarray:
+        if field_name not in self.field_names:
+            raise ValueError(f"Field '{field_name}' not found. Available fields: {self.field_names}")
 
-    #def add_field() - add new field scalar or vector
+        idx = self.field_names.index(field_name)
+        start_col = self.spatial_dims + sum(self.field_dimensions[:idx])
+        end_col = start_col + self.field_dimensions[idx]
+        return self.data[:, start_col:end_col]
+    
+
+    def add_field(self, name: str, value: np.ndarray, field_dim: int = 1):
+        # Check given values
+        if name in self.field_names:
+            raise ValueError(f"Field '{name}' already exists")
+
+        if len(value.shape) == 1:
+            values = values.reshape(-1, 1)
+
+        if values.shape[0] != self.n_points:
+            raise ValueError(f"Values must have {self.n_points} points, got {values.shape[0]}")
+        
+        if values.shape[1] != field_dim:
+            raise ValueError(f"Expected field dimension {field_dim}, got {values.shape[1]}")       
+
+        # Add to data array
+        self.data = np.hstack([self.data, values])
+        self.total_dims += field_dim
+
+        # Update metadata
+        self.field_names.append(name)
+        self.field_dimensions.append(field_dim)
 
     # __________ PRUNING __________
 
