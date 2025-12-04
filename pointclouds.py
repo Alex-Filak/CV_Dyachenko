@@ -56,7 +56,7 @@ class PointsCloud:
                     filepath: str, 
                     spatial_dims: int = 3,
                     field_names: Optional[List[str]] = None,
-                    field_dimensions: Optional[List[int]] = None) -> 'PointCloud':
+                    field_dimensions: Optional[List[int]] = None) -> 'PointsCloud':
 
         try:
             data = np.loadtxt(file_path)
@@ -119,7 +119,19 @@ class PointsCloud:
 
     # __________ PRUNING __________
 
-    #def prune_random() - drope randomly drop specified fractions of points
+    def prune_random(self, fraction: float) -> 'PointsCloud':
+        if not 0 < fraction <= 1:
+            raise ValueError("Fraction must be between 0 and 1")
+
+        n_keep = int(self.n_points * fraction)
+        idx = np.random.choise(self.n_points, n_keep, replace=False)
+        return PointsCloud(
+            self.data[idx],
+            spatial_dims = self.spatial_dims,
+            field_names = self.field_names.copy(),
+            field_dimensions = self.field_dimensions.copy()
+            )
+
 
     #def prune_voxel() - 
 
