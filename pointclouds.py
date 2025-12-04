@@ -71,6 +71,7 @@ class PointsCloud:
         np.savetxt(file_path, sefl.data, fmt='%.6f')
 
     def copy(self):
+
         return PointsCloud(
             self.data.copy(),
             spatial_dims = self.spatial_dims,
@@ -86,6 +87,7 @@ class PointsCloud:
         return self.data[:, :self.spatial_dims]
 
     def get_field(self, field_name: str) -> np.ndarray:
+
         if field_name not in self.field_names:
             raise ValueError(f"Field '{field_name}' not found. Available fields: {self.field_names}")
 
@@ -120,6 +122,7 @@ class PointsCloud:
     # __________ PRUNING __________
 
     def prune_random(self, fraction: float) -> 'PointsCloud':
+
         if not 0 < fraction <= 1:
             raise ValueError("Fraction must be between 0 and 1")
 
@@ -133,16 +136,38 @@ class PointsCloud:
             )
 
 
-    #def prune_voxel() - 
+    #def prune_voxel(self, voxel_size: Union[float, Sequence[float]]) -> 'PointsCloud':
 
     
     # __________ FILTERING SYSTEM __________
 
-    #def filter() - filter points using custom condition function
+    def filter(self, condition: Callable[[np.ndarray], bool]) -> 'PointsCloud':
 
-    #def fileter_bbox() - Axes-aligned boundig box filter for spatial dimentions
+        mask = np.apply_along_axis(condition, 1, self.data)
 
-    
+        return PointsCloud(
+            self.data[mask],
+            spatial_dims = self.spatial_dims,
+            field_names = self.field_names.copy(),
+            field_dimensions =self.field_dimensions.copy()
+            )
+
+
+    def fileter_bbox(self, min_bounds: Sequence[float], max_bounds: Sequence[float]) -> 'PointsCloud':
+
+        if len(min_bounds) != self.spatial_dims or len(max_bounds) != self.spatial_dims:
+            raise ValueError(f"Bounds must have {self.spatial_dims} dimensions")
+
+        spatial = self.get_spatial()
+        mask = np.all((spatial >= min_bounds) & (spatial <= max_bounds), axis=1)
+
+        return PointsCloud(
+            self.data[mask],
+            spatial_dims = self.spatial_dims,
+            field_names = self.field_names,
+            field_dimensions = self.field_dimensions
+            )
+
     # __________ FIELD OPERATIONS __________
 
     #def constant_field() - add constant scolar/vector field
@@ -157,9 +182,165 @@ class PointsCloud:
 
     # __________ VISUALIZATION __________
 
-    #def visualize() 
+    def visualize(self,
+                    spatial_dim_indices: Optional[List[int]] = None,
+                    color: Union[str, Tuple[float, float, float], np.ndarray, None] = None,
+                    color_field: Optional[str] = None,
+                    color_map: Optional[str] = None,
+                    size: Union[float, str, np.ndarray] = 1.0,
+                    backend: str = 'matplotlib',
+                    title: str = "Point Cloud",
+                    figsize: Tuple[int, int] = (10, 8),
+                    **kwargs):
 
+        if spatial_dim_indices is None:
+            n_plot_dims = min(3, self.spatial_dims)
+            spatial_dim_indices = list(range(n_plot_dims))
 
+        else:
+            n_plot_dims = len(spatial_dim_indices)
+
+        if n_plot_dims not in (2, 3):
+            raise ValueError("Can only visualize 2D or 3D spatial data")
+        
+        coords = self.data[:, spatial_dim_indices]
+
+        final_colors = None
+        color_is_rgb = False
+        
+        if color is not None:
+
+            if isinstance(color, str):
+
+                final_colors = np.tile(matplotlib.colors.to_rgb(color), (self.n_points, 1))
+                color_is_rgb = True
+            elif isinstance(color, tuple):
+
+                rgb = color[:3]
+                final_colors = np.tile(rgb, (self.n_points, 1))
+                color_is_rgb = True
+
+            elif isinstance(color, np.ndarray):
+
+                if color.shape == (self.n_points, 3) or color.shape == (self.n_points, 4):
+                    final_colors = color[:, :3]  # Ensure RGB
+                    color_is_rgb = True
+
+                else:
+                    raise ValueError("Color array must be (N, 3) or (N, 4)")
+        elif color_field is not None:
+
+            if color_field not in self.field_names:
+                raise ValueError(f"Color field '{color_field}' not found")
+            
+            field_vals = self.get_field(color_field)
+            field_dim = field_vals.shape[1]
+            field_type = self.field_types[self.field_names.index(color_field)]
+            
+            if field_type == 'rgb' or field_dim == 3:
+
+                final_colors = field_vals[:, :3]  # Ensure only RGB
+
+                if np.max(final_colors) > 1.0:
+                    final_colors = final_colors / 255.0
+
+                color_is_rgb = True
+            else:
+                norm_vals = field_vals.flatten()
+
+                if np.ptp(norm_vals) > 0:
+                    norm_vals = (norm_vals - np.min(norm_vals)) / np.ptp(norm_vals)
+
+                cmap = plt.get_cmap(color_map or 'viridis')
+                final_colors = cmap(norm_vals)[:, :3]
+                color_is_rgb = True
+        
+        final_sizes = None
+
+        if isinstance(size, str):
+
+            if size not in self.field_names:
+                raise ValueError(f"Size field '{size}' not found")
+            
+            size_vals = self.get_field(size)
+            if size_vals.shape[1] != 1:
+                raise ValueError("Size field must be scalar")
+            
+            vals = size_vals.flatten()
+
+            if np.ptp(vals) > 0:
+                norm_vals = (vals - np.min(vals)) / np.ptp(vals)
+                final_sizes = 5 + 45 * norm_vals
+
+            else:
+                final_sizes = np.full(self.n_points, 25)
+
+        elif isinstance(size, (int, float)):
+            final_sizes = np.full(self.n_points, float(size))
+
+        elif isinstance(size, np.ndarray):
+
+            if size.shape == (self.n_points,):
+                final_sizes = size
+
+            else:
+                raise ValueError("Size array must be (N,)")
+        else:
+            final_sizes = np.full(self.n_points, 1.0)
+
+        # Dispatch to backend
+        if backend == 'matplotlib':
+            self._vis_matplotlib(coords, final_colors, color_is_rgb, final_sizes, 
+                                n_plot_dims, title, figsize, **kwargs)
+        elif backend == 'plotly':
+            self._vis_plotly(coords, final_colors, color_is_rgb, final_sizes, 
+                            n_plot_dims, title, **kwargs)
+        else:
+            raise ValueError(f"Unsupported backend: {backend}")
+
+    def _vis_matplotlib(self, coords, colors, color_is_rgb, sizes,
+                       n_dims, title, figsize, **kwargs):
+        fig = plt.figure(figsize=figsize)
+        
+        scatter_args = {
+            's': sizes,
+            'alpha': 0.6,
+            'edgecolors': 'none'
+        }
+        
+        if colors is not None:
+            scatter_args['c'] = colors
+        
+        if n_dims == 3:
+            ax = fig.add_subplot(111, projection='3d')
+            scatter_args.update({
+                'xs': coords[:, 0],
+                'ys': coords[:, 1],
+                'zs': coords[:, 2],
+            })
+            if not color_is_rgb and colors is not None:
+                scatter_args['cmap'] = kwargs.get('cmap', 'viridis')
+            
+            sc = ax.scatter(**scatter_args)
+            ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
+        else:  # 2D
+            ax = fig.add_subplot(111)
+            scatter_args.update({
+                'x': coords[:, 0],
+                'y': coords[:, 1],
+            })
+
+        if not color_is_rgb and colors is not None:
+            
+            sc = ax.scatter(**scatter_args)
+            ax.set_xlabel('X'); ax.set_ylabel('Y')
+        
+        if colors is not None and not color_is_rgb:
+            plt.colorbar(sc, ax=ax, label='Field Value')
+        
+        plt.title(title)
+        plt.tight_layout()
+        plt.show()
 
 
 # __________ UTILITY FUNCTIONS __________
