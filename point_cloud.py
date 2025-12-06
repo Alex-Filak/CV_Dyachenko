@@ -98,12 +98,12 @@ class PointsCloud:
         return self.data[:, start_col:end_col]
     
 
-    def add_field(self, name: str, value: np.ndarray, field_dim: int = 1):
+    def add_field(self, name: str, values: np.ndarray, field_dim: int = 1):
         # Check given values
         if name in self.field_names:
             raise ValueError(f"Field '{name}' already exists")
 
-        if len(value.shape) == 1:
+        if len(values.shape) == 1:
             values = values.reshape(-1, 1)
 
         if values.shape[0] != self.n_points:
@@ -255,13 +255,21 @@ class PointsCloud:
             field_dimensions = self.field_dimensions.copy()
             )
 
-        
-
-        
-    
     # __________ FILTERING SYSTEM __________
 
     def filter(self, condition: Callable[[np.ndarray], bool]) -> 'PointsCloud':
+        """
+        Filter
+          
+        Select from point cloud only points, which satisfy filter function
+        which specified as lamba function.
+
+        Parametrs:
+          condition: lambda[[np.ndarray], bool]
+
+        Returns:
+          Subsampled point cloud. 
+        """
 
         mask = np.apply_along_axis(condition, 1, self.data)
 
@@ -273,7 +281,7 @@ class PointsCloud:
             )
 
 
-    def fileter_bbox(self, min_bounds: Sequence[float], max_bounds: Sequence[float]) -> 'PointsCloud':
+    def filter_bbox(self, min_bounds: Sequence[float], max_bounds: Sequence[float]) -> 'PointsCloud':
 
         if len(min_bounds) != self.spatial_dims or len(max_bounds) != self.spatial_dims:
             raise ValueError(f"Bounds must have {self.spatial_dims} dimensions")
@@ -302,121 +310,141 @@ class PointsCloud:
 
     # __________ VISUALIZATION __________
 
-    def visualize(self,
-                    spatial_dim_indices: Optional[List[int]] = None,
-                    color: Union[str, Tuple[float, float, float], np.ndarray, None] = None,
-                    color_field: Optional[str] = None,
-                    color_map: Optional[str] = None,
-                    size: Union[float, str, np.ndarray] = 1.0,
-                    backend: str = 'matplotlib',
-                    title: str = "Point Cloud",
-                    figsize: Tuple[int, int] = (10, 8),
-                    **kwargs):
+def visualize(self,
+              spatial_dim_indices: Optional[List[int]] = None,
+              color: Union[str, Tuple[float, float, float], np.ndarray, None] = None,
+              color_field: Optional[str] = None,
+              color_map: Optional[str] = None,
+              size: Union[float, str, np.ndarray] = 1.0,
+              backend: str = 'matplotlib',
+              title: str = "Point Cloud",
+              figsize: Tuple[int, int] = (10, 8),
+              **kwargs):
+    """
+    Visualize the point cloud in 2D or 3D with flexible coloring and sizing.
+    
+    Parameters:
+    -----------
+    spatial_dim_indices : list of int, optional
+        Which dimensions to use for spatial coordinates (e.g., [0,1] for XY).
+        Default: first 2 or 3 spatial dimensions.
+    color : str, tuple, np.ndarray, or None
+        Direct color specification (overrides color_field).
+    color_field : str, optional
+        Name of field to use for coloring.
+        - If field dimension == 3 → interpreted as RGB (values scaled to [0,1])
+        - Otherwise → scalar field, mapped via colormap
+    color_map : str, optional
+        Matplotlib colormap name for scalar fields (default: 'viridis')
+    size : float, str, or np.ndarray
+        Point size(s). If str, name of scalar field to map to size.
+    backend : str
+        'matplotlib' or 'plotly'
+    title : str
+        Plot title
+    figsize : tuple
+        Figure size for matplotlib
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib
 
-        if spatial_dim_indices is None:
-            n_plot_dims = min(3, self.spatial_dims)
-            spatial_dim_indices = list(range(n_plot_dims))
-
-        else:
-            n_plot_dims = len(spatial_dim_indices)
-
+    # Determine spatial coordinates
+    if spatial_dim_indices is None:
+        n_plot_dims = min(3, self.spatial_dims)
+        spatial_dim_indices = list(range(n_plot_dims))
+    else:
+        n_plot_dims = len(spatial_dim_indices)
         if n_plot_dims not in (2, 3):
             raise ValueError("Can only visualize 2D or 3D spatial data")
-        
-        coords = self.data[:, spatial_dim_indices]
+    
+    coords = self.data[:, spatial_dim_indices]
 
-        final_colors = None
-        color_is_rgb = False
-        
-        if color is not None:
+    # Handle coloring
+    final_colors = None
+    color_is_rgb = False
 
-            if isinstance(color, str):
-
-                final_colors = np.tile(matplotlib.colors.to_rgb(color), (self.n_points, 1))
-                color_is_rgb = True
-            elif isinstance(color, tuple):
-
-                rgb = color[:3]
-                final_colors = np.tile(rgb, (self.n_points, 1))
-                color_is_rgb = True
-
-            elif isinstance(color, np.ndarray):
-
-                if color.shape == (self.n_points, 3) or color.shape == (self.n_points, 4):
-                    final_colors = color[:, :3]  # Ensure RGB
-                    color_is_rgb = True
-
-                else:
-                    raise ValueError("Color array must be (N, 3) or (N, 4)")
-        elif color_field is not None:
-
-            if color_field not in self.field_names:
-                raise ValueError(f"Color field '{color_field}' not found")
-            
-            field_vals = self.get_field(color_field)
-            field_dim = field_vals.shape[1]
-            field_type = self.field_types[self.field_names.index(color_field)]
-            
-            if field_type == 'rgb' or field_dim == 3:
-
-                final_colors = field_vals[:, :3]  # Ensure only RGB
-
-                if np.max(final_colors) > 1.0:
-                    final_colors = final_colors / 255.0
-
+    if color is not None:
+        # Direct color override
+        if isinstance(color, str):
+            rgb = matplotlib.colors.to_rgb(color)
+            final_colors = np.tile(rgb, (self.n_points, 1))
+            color_is_rgb = True
+        elif isinstance(color, tuple):
+            rgb = color[:3]
+            final_colors = np.tile(rgb, (self.n_points, 1))
+            color_is_rgb = True
+        elif isinstance(color, np.ndarray):
+            if color.shape == (self.n_points, 3) or color.shape == (self.n_points, 4):
+                final_colors = color[:, :3]
                 color_is_rgb = True
             else:
-                norm_vals = field_vals.flatten()
-
-                if np.ptp(norm_vals) > 0:
-                    norm_vals = (norm_vals - np.min(norm_vals)) / np.ptp(norm_vals)
-
-                cmap = plt.get_cmap(color_map or 'viridis')
-                final_colors = cmap(norm_vals)[:, :3]
-                color_is_rgb = True
+                raise ValueError("Color array must be shape (N, 3) or (N, 4)")
+    elif color_field is not None:
+        # Color from field
+        if color_field not in self.field_names:
+            raise ValueError(f"Color field '{color_field}' not found. Available: {self.field_names}")
         
-        final_sizes = None
+        field_vals = self.get_field(color_field)
+        field_dim = field_vals.shape[1]
 
-        if isinstance(size, str):
-
-            if size not in self.field_names:
-                raise ValueError(f"Size field '{size}' not found")
-            
-            size_vals = self.get_field(size)
-            if size_vals.shape[1] != 1:
-                raise ValueError("Size field must be scalar")
-            
-            vals = size_vals.flatten()
-
-            if np.ptp(vals) > 0:
-                norm_vals = (vals - np.min(vals)) / np.ptp(vals)
-                final_sizes = 5 + 45 * norm_vals
-
-            else:
-                final_sizes = np.full(self.n_points, 25)
-
-        elif isinstance(size, (int, float)):
-            final_sizes = np.full(self.n_points, float(size))
-
-        elif isinstance(size, np.ndarray):
-
-            if size.shape == (self.n_points,):
-                final_sizes = size
-
-            else:
-                raise ValueError("Size array must be (N,)")
+        if field_dim == 3:
+            # Treat as RGB
+            final_colors = field_vals[:, :3].astype(float)
+            # Normalize if needed
+            if final_colors.size > 0 and np.max(final_colors) > 1.0:
+                final_colors = final_colors / 255.0
+            final_colors = np.clip(final_colors, 0.0, 1.0)
+            color_is_rgb = True
         else:
-            final_sizes = np.full(self.n_points, 1.0)
+            # Scalar field to colormap
+            scalar_vals = field_vals.flatten()
+            if np.ptp(scalar_vals) > 0:
+                norm_vals = (scalar_vals - np.min(scalar_vals)) / np.ptp(scalar_vals)
+            else:
+                norm_vals = np.zeros_like(scalar_vals)
+            
+            cmap = plt.get_cmap(color_map or 'viridis')
+            final_colors = cmap(norm_vals)[:, :3]
+            color_is_rgb = False
+    else:
+        # Default: uniform color (gray)
+        final_colors = np.tile([0.5, 0.5, 0.5], (self.n_points, 1))
+        color_is_rgb = True
 
-        # Dispatch to backend
-        if backend == 'matplotlib':
-            self._vis_matplotlib(coords, final_colors, color_is_rgb, final_sizes, 
-                                n_plot_dims, title, figsize, **kwargs)
-        elif backend == 'plotly':
-            self._vis_plotly(coords, final_colors, color_is_rgb, final_sizes, 
-                            n_plot_dims, title, **kwargs)
+    # Handle sizing
+    final_sizes = None
+
+    if isinstance(size, str):
+        if size not in self.field_names:
+            raise ValueError(f"Size field '{size}' not found")
+        size_vals = self.get_field(size)
+        if size_vals.shape[1] != 1:
+            raise ValueError("Size field must be scalar (dimension 1)")
+        vals = size_vals.flatten()
+        if np.ptp(vals) > 0:
+            norm_vals = (vals - np.min(vals)) / np.ptp(vals)
+            final_sizes = 5 + 45 * norm_vals  # range [5, 50]
         else:
-            raise ValueError(f"Unsupported backend: {backend}")
+            final_sizes = np.full(self.n_points, 25.0)
+    elif isinstance(size, (int, float)):
+        final_sizes = np.full(self.n_points, float(size))
+    elif isinstance(size, np.ndarray):
+        if size.shape == (self.n_points,):
+            final_sizes = size
+        else:
+            raise ValueError("Size array must be shape (N,)")
+    else:
+        final_sizes = np.full(self.n_points, 1.0)
+
+    # Dispatch to backend
+    if backend == 'matplotlib':
+        self._vis_matplotlib(coords, final_colors, color_is_rgb, final_sizes,
+                            n_plot_dims, title, figsize, **kwargs)
+    elif backend == 'plotly':
+        self._vis_plotly(coords, final_colors, color_is_rgb, final_sizes,
+                        n_plot_dims, title, **kwargs)
+    else:
+        raise ValueError(f"Unsupported backend: {backend}")
 
     def _vis_matplotlib(self, coords, colors, color_is_rgb, sizes,
                        n_dims, title, figsize, **kwargs):
