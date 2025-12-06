@@ -123,12 +123,27 @@ class PointsCloud:
     # __________ PRUNING __________
 
     def subsample_random(self, fraction: float) -> 'PointsCloud':
+        """
+        Random Point Sampling
+
+        From the given point cloud randomly select given percent of
+        points.
+
+        Parametrs:
+        fraction: float
+          Percent of points, which would be selected.
+        
+        Returns:
+          Subsampled point cloud
+        """
 
         if not 0 < fraction <= 1:
             raise ValueError("Fraction must be between 0 and 1")
 
+        # Select given fraction of points
         n_keep = int(self.n_points * fraction)
         idx = np.random.choice(self.n_points, n_keep, replace=False)
+
         return PointsCloud(
             self.data[idx],
             spatial_dims = self.spatial_dims,
@@ -138,6 +153,20 @@ class PointsCloud:
 
 
     def subsample_voxel(self, voxel_size: Union[float, Sequence[float]]) -> 'PointsCloud':
+        """
+        Voxel Point Sampling
+
+        Separate spaces on voxels with size voxel_size and 
+        select one point from each voxel, which is the
+        most close to voxel's center.
+
+        Parametrs:
+        voxel_size: float
+          Size of voxels which would be used
+
+        Returns:
+          Subsampled point cloud
+        """
         spatial = self.get_spatial()
         
         if isinstance(voxel_size, (int, float)):
@@ -146,13 +175,16 @@ class PointsCloud:
         if len(voxel_size) != self.spatial_dims:
             raise ValueError(f"Voxel size must have {self.spatial_dims} dimensions")
         
+        # Compute voxel indices
         voxel_indices = np.floor(spatial / voxel_size).astype(int)
         
+        # Create unique voxel keys
         voxel_keys = [tuple(idx) for idx in voxel_indices]
         unique_voxels = np.unique(voxel_keys, axis=0)
         
         selected_indices = []
 
+        # for each voxel select centroid point
         for voxel in unique_voxels:
             mask = np.all(voxel_indices == voxel, axis=1)
             if np.any(mask):
@@ -171,6 +203,61 @@ class PointsCloud:
             field_names=self.field_names.copy(),
             field_dimensions=self.field_dimensions.copy()
         )
+
+    def subsample_fps(self, k: int) -> "PointsCloud":
+        """
+        Farthest Point Sampling
+
+        Select k points such as each new point as far as posible from the
+        already selected points.
+
+        Parametrs:
+        k: int
+          Number of points which will be selected
+
+        Returns:
+          Subsampled point cloud with k points
+        """
+
+        if not (1 <= k <= self.n_points):
+            raise ValueError(f"Num of sampled points must be between 1 and {self.n_points}, got {k}")
+
+        if k == self.n_points:
+            return self.copy()
+
+        spatial  = self.get_spatial()
+        n_points = spatial.shape[0]
+
+        selected_indices = []
+        min_distances =np.full(n_points, np.inf)
+
+        # Choose first point with idx 0
+        first_idx = 0
+        selected_indices[0] = first_idx
+        min_distances[first_idx] = 0.0
+
+        # Calculate distances from the first point
+        dists = np.linalg.norm(spatial - spatial[first_idx], axis=1)
+        min_distances = np.minimum(min_distance, dists)
+
+        # Choose other k-1 points
+        for i in range(1, k):
+            next_idx = np.argmax(min_distances)
+            selected_indices[i] = next_idx
+
+            new_dists = np.linalg.norm(coords - coords[next_idx], axis=1)
+            min_distances = np.minimum(min_distances, new_dists)
+
+        return PointsCloud(
+            self.data[],
+            spatial_dims = self.spatial_dims,
+            field_names  = self.field_names.copy(),
+            field_dimensions = self_field_dimensions.copy()
+            )
+
+        
+
+        
     
     # __________ FILTERING SYSTEM __________
 
