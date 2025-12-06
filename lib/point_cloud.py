@@ -448,42 +448,53 @@ class PointsCloud:
             raise ValueError(f"Unsupported backend: {backend}")
 
     def _vis_matplotlib(self, coords, colors, color_is_rgb, sizes,
-                        n_dims, title, figsize, **kwargs):
+                    n_dims, title, figsize, **kwargs):
+        import matplotlib.pyplot as plt
+
         fig = plt.figure(figsize=figsize)
-
-        scatter_args = {
-            's': sizes,
-            'alpha': 0.6,
-            'edgecolors': 'none'
-        }
-
-        if colors is not None:
-            scatter_args['c'] = colors
 
         if n_dims == 3:
             ax = fig.add_subplot(111, projection='3d')
-            scatter_args.update({
+            scatter_args = {
                 'xs': coords[:, 0],
                 'ys': coords[:, 1],
                 'zs': coords[:, 2],
-            })
-            if not color_is_rgb and colors is not None:
-                scatter_args['cmap'] = kwargs.get('cmap', 'viridis')
+                's': sizes,
+                'alpha': 0.6,
+                'edgecolors': 'none'
+            }
+
+            if colors is not None:
+                if color_is_rgb:
+                    scatter_args['c'] = colors
+                else:
+                    scatter_args['c'] = colors
+                    scatter_args['cmap'] = kwargs.get('cmap', 'viridis')
 
             sc = ax.scatter(**scatter_args)
             ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
-        else:  # 2D
+
+        else:  # 2D — ALWAYS call scatter
             ax = fig.add_subplot(111)
-            scatter_args.update({
+            scatter_args = {
                 'x': coords[:, 0],
                 'y': coords[:, 1],
-            })
+                's': sizes,
+                'alpha': 0.6,
+                'edgecolors': 'none'
+            }
 
-        if not color_is_rgb and colors is not None:
+            if colors is not None:
+                if color_is_rgb:
+                    scatter_args['c'] = colors
+                else:
+                    scatter_args['c'] = colors
+                    scatter_args['cmap'] = kwargs.get('cmap', 'viridis')
 
-            sc = ax.scatter(**scatter_args)
+            sc = ax.scatter(**scatter_args)  # ← MUST be called!
             ax.set_xlabel('X'); ax.set_ylabel('Y')
 
+        # Add colorbar only for colormap (not RGB)
         if colors is not None and not color_is_rgb:
             plt.colorbar(sc, ax=ax, label='Field Value')
 
