@@ -325,7 +325,28 @@ class PointsCloud:
         end   = start + self.field_dimensions[idx]
         self.data[:, start:end] *= factor
 
-    #def offset_field() - add offset to field value
+    def offset_field(self, field_name: str, offset: float):
+        """
+        Offset field
+
+        Add value offset to field's values with name field_name
+
+        Parametr:
+          field_name: str
+          offset: float
+
+        Returns:
+          None
+        """
+
+        if field_name not in self.field_names:
+            raise ValueError(f"Field '{field_name}' not found")
+
+        idx = self.field_names.index(field_name)
+        start = self.spatial_dims + sum(self.field_dimensions[:idx])
+        end = start + self.field_dimensions[idx]
+        self.data[:, start:end] += offset
+            
 
     #def gaussian_smooth() - apply gaussian smooth ot scalar/vector field
 
