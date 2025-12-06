@@ -233,19 +233,19 @@ class PointsCloud:
 
         # Choose first point with idx 0
         first_idx = 0
-        selected_indices[0] = first_idx
+        selected_indices.append(first_idx)
         min_distances[first_idx] = 0.0
 
         # Calculate distances from the first point
         dists = np.linalg.norm(spatial - spatial[first_idx], axis=1)
-        min_distances = np.minimum(min_distance, dists)
+        min_distances = np.minimum(min_distances, dists)
 
         # Choose other k-1 points
         for i in range(1, k):
             next_idx = np.argmax(min_distances)
-            selected_indices[i] = next_idx
+            selected_indices.append(next_idx)
 
-            new_dists = np.linalg.norm(coords - coords[next_idx], axis=1)
+            new_dists = np.linalg.norm(spatial - spatial[next_idx], axis=1)
             min_distances = np.minimum(min_distances, new_dists)
 
         return PointsCloud(
