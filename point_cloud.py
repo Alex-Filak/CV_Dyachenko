@@ -249,10 +249,10 @@ class PointsCloud:
             min_distances = np.minimum(min_distances, new_dists)
 
         return PointsCloud(
-            self.data[],
+            self.data[selected_indices],
             spatial_dims = self.spatial_dims,
             field_names  = self.field_names.copy(),
-            field_dimensions = self_field_dimensions.copy()
+            field_dimensions = self.field_dimensions.copy()
             )
 
         
