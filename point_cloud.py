@@ -137,8 +137,40 @@ class PointsCloud:
             )
 
 
-    #def prune_voxel(self, voxel_size: Union[float, Sequence[float]]) -> 'PointsCloud':
+    def prune_voxel(self, voxel_size: Union[float, Sequence[float]]) -> 'PointsCloud':
+        spatial = self.get_spatial()
+        
+        if isinstance(voxel_size, (int, float)):
+            voxel_size = [voxel_size] * self.spatial_dims
+        
+        if len(voxel_size) != self.spatial_dims:
+            raise ValueError(f"Voxel size must have {self.spatial_dims} dimensions")
+        
+        voxel_indices = np.floor(spatial / voxel_size).astype(int)
+        
+        voxel_keys = [tuple(idx) for idx in voxel_indices]
+        unique_voxels = np.unique(voxel_keys, axis=0)
+        
+        selected_indices = []
 
+        for voxel in unique_voxels:
+            mask = np.all(voxel_indices == voxel, axis=1)
+            if np.any(mask):
+                # Get centroid of points in this voxel
+                points_in_voxel = spatial[mask]
+                centroid = np.mean(points_in_voxel, axis=0)
+                
+                # Find closest point to centroid
+                distances = np.linalg.norm(points_in_voxel - centroid, axis=1)
+                closest_idx = np.where(mask)[0][np.argmin(distances)]
+                selected_indices.append(closest_idx)
+        
+        return PointsCloud(
+            self.data[selected_indices],
+            spatial_dims=self.spatial_dims,
+            field_names=self.field_names.copy(),
+            field_dimensions=self.field_dimensions.copy()
+        )
     
     # __________ FILTERING SYSTEM __________
 
