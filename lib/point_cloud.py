@@ -303,7 +303,27 @@ class PointsCloud:
 
     #def constant_field() - add constant scolar/vector field
 
-    #def scale_field() - multiply fields by scalar
+    def scale_field(self, field_name: str, factor: float):
+        """
+        Scale field
+
+        Multiply field with name field_name values on specified factor
+
+        Parametr:
+          field_name: str
+          factor: float
+
+        Returns:
+          None
+        """
+        
+        if field_name not in self.field_names:
+            raise ValueError(f"Field '{field_name}' not found")
+
+        idx = self.field_names.index(field_name)
+        start = self.spatial_dims + sum(self.field_dimensions[:idx])
+        end   = start + self.field_dimensions[idx]
+        self.data[:, start:end] *= factor
 
     #def offset_field() - add offset to field value
 
@@ -406,7 +426,7 @@ class PointsCloud:
 
                 cmap = plt.get_cmap(color_map or 'viridis')
                 final_colors = cmap(norm_vals)[:, :3]
-                color_is_rgb = False
+                color_is_rgb = True
         else:
             # Default: uniform color (gray)
             final_colors = np.tile([0.5, 0.5, 0.5], (self.n_points, 1))
@@ -474,7 +494,7 @@ class PointsCloud:
             sc = ax.scatter(**scatter_args)
             ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
 
-        else:  # 2D — ALWAYS call scatter
+        else:
             ax = fig.add_subplot(111)
             scatter_args = {
                 'x': coords[:, 0],
@@ -491,10 +511,9 @@ class PointsCloud:
                     scatter_args['c'] = colors
                     scatter_args['cmap'] = kwargs.get('cmap', 'viridis')
 
-            sc = ax.scatter(**scatter_args)  # ← MUST be called!
+            sc = ax.scatter(**scatter_args)
             ax.set_xlabel('X'); ax.set_ylabel('Y')
 
-        # Add colorbar only for colormap (not RGB)
         if colors is not None and not color_is_rgb:
             plt.colorbar(sc, ax=ax, label='Field Value')
 
@@ -502,48 +521,65 @@ class PointsCloud:
         plt.tight_layout()
         plt.show()
 
-    def _vis_plotly(self, coords, colors, color_is_rgb, sizes, 
-                    n_dims, title, **kwargs):
+    def _vis_plotly(self, coords, colors, color_is_rgb, sizes, n_dims, title, **kwargs):
+        try:
+            import plotly.graph_objects as go
+        except ImportError:
+            raise ImportError("Plotly backend requires 'plotly'. Install via: pip install plotly")
 
-            marker_args = {
-                'size': sizes if sizes is not None else 2,
-                'opacity': 0.6
-            }
+        marker = dict(
+            size=sizes,
+            opacity=0.6
+        )
 
-            if colors is not None:
-                if color_is_rgb:
-                    # Convert RGB to plotly format
-                    marker_args['color'] = [f'rgb({r*255},{g*255},{b*255})' for r, g, b in colors]
-                else:
-                    marker_args['color'] = colors
-                    marker_args['colorscale'] = kwargs.get('colorscale', 'Viridis')
-                    marker_args['showscale'] = True
-                    if n_dims == 3:
-                        fig = go.Figure(data=[go.Scatter3d(
-                        x=coords[:, 0],
-                        y=coords[:, 1],
-                        z=coords[:, 2],
-                        mode='markers',
-                        marker=marker_args,
-                        **kwargs
-                    )])
-                    fig.update_layout(scene=dict(
-                        xaxis_title='X',
-                        yaxis_title='Y',
-                        zaxis_title='Z'
-                    ))
-            else:  # 2D
-                fig = go.Figure(data=[go.Scatter(
-                    x=coords[:, 0],
-                    y=coords[:, 1],
-                    mode='markers',
-                    marker=marker_args,
-                    **kwargs
-                )])
-                fig.update_layout(xaxis_title='X', yaxis_title='Y')
+        if colors is not None:
+            if color_is_rgb:
+                marker['color'] = [
+                    f"rgb({int(r*255)},{int(g*255)},{int(b*255)})"
+                    for r, g, b in colors
+                ]
+            else:
+                marker['color'] = colors
+                marker['colorscale'] = kwargs.get('colorscale', 'Viridis')
+                marker['showscale'] = True
+        else:
+            marker['color'] = 'lightgray'
 
-            fig.update_layout(title=title, width=800, height=600)
-            fig.show()
+        if n_dims == 3:
+            fig = go.Figure(data=go.Scatter3d(
+                x=coords[:, 0],
+                y=coords[:, 1],
+                z=coords[:, 2],
+                mode='markers',
+                marker=marker,
+                **kwargs
+            ))
+            fig.update_layout(
+                scene=dict(
+                    xaxis_title='X',
+                    yaxis_title='Y',
+                    zaxis_title='Z'
+                )
+            )
+        else:
+            fig = go.Figure(data=go.Scatter(
+                x=coords[:, 0],
+                y=coords[:, 1],
+                mode='markers',
+                marker=marker,
+                **kwargs
+            ))
+            fig.update_layout(
+                xaxis_title='X',
+                yaxis_title='Y'
+            )
+
+        fig.update_layout(
+            title=title,
+            width=800,
+            height=600
+        )
+        fig.show()
 
 
 # __________ UTILITY FUNCTIONS __________
