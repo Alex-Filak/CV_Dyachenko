@@ -14,10 +14,11 @@ class PointsCloud:
     """
 
     # Init method
-    def __init__(self, np.ndarray,
+    def __init__(self,
+                 data: np.ndarray,
                  spatial_dims: int=3,
                  field_names: Optional[List[str]]=None,
-                 field_dimensions: Optional[List[float]]=None):
+                 field_dimensions: Optional[List[int]]=None):
 
         if not isinstance(data, np.ndarray):
             raise TypeError("Data must be a numpy array")
@@ -59,16 +60,16 @@ class PointsCloud:
                     field_dimensions: Optional[List[int]] = None) -> 'PointsCloud':
 
         try:
-            data = np.loadtxt(file_path)
+            data = np.loadtxt(filepath)
 
         except Exception as e:
-            raise IOError(f"Failed to load file {file_path}: {str(e)}")
+            raise IOError(f"Failed to load file {filepath}: {str(e)}")
 
 
-        return cls(data, spatial_dims, field_names,field_dimensions) 
+        return cls(data, spatial_dims, field_names, field_dimensions) 
 
     def to_file(self, file_path: str):
-        np.savetxt(file_path, sefl.data, fmt='%.6f')
+        np.savetxt(file_path, self.data, fmt='%.6f')
 
     def copy(self):
 
@@ -121,13 +122,13 @@ class PointsCloud:
 
     # __________ PRUNING __________
 
-    def prune_random(self, fraction: float) -> 'PointsCloud':
+    def subsample_random(self, fraction: float) -> 'PointsCloud':
 
         if not 0 < fraction <= 1:
             raise ValueError("Fraction must be between 0 and 1")
 
         n_keep = int(self.n_points * fraction)
-        idx = np.random.choise(self.n_points, n_keep, replace=False)
+        idx = np.random.choice(self.n_points, n_keep, replace=False)
         return PointsCloud(
             self.data[idx],
             spatial_dims = self.spatial_dims,
