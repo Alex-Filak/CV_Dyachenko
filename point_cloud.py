@@ -1,8 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 from matplotlib import cm
 from typing import Callable, List, Dict, Any, Optional, Tuple, Union, Sequence
+
 import warnings
+
 
 class PointsCloud:
     """
@@ -489,6 +492,49 @@ def visualize(self,
         plt.title(title)
         plt.tight_layout()
         plt.show()
+
+def _vis_plotly(self, coords, colors, color_is_rgb, sizes, 
+                   n_dims, title, **kwargs):
+        
+        marker_args = {
+            'size': sizes if sizes is not None else 2,
+            'opacity': 0.6
+        }
+        
+        if colors is not None:
+            if color_is_rgb:
+                # Convert RGB to plotly format
+                marker_args['color'] = [f'rgb({r*255},{g*255},{b*255})' for r, g, b in colors]
+            else:
+                marker_args['color'] = colors
+                marker_args['colorscale'] = kwargs.get('colorscale', 'Viridis')
+                marker_args['showscale'] = True
+                if n_dims == 3:
+                    fig = go.Figure(data=[go.Scatter3d(
+                    x=coords[:, 0],
+                    y=coords[:, 1],
+                    z=coords[:, 2],
+                    mode='markers',
+                    marker=marker_args,
+                    **kwargs
+                )])
+                fig.update_layout(scene=dict(
+                    xaxis_title='X',
+                    yaxis_title='Y',
+                    zaxis_title='Z'
+                ))
+        else:  # 2D
+            fig = go.Figure(data=[go.Scatter(
+                x=coords[:, 0],
+                y=coords[:, 1],
+                mode='markers',
+                marker=marker_args,
+                **kwargs
+            )])
+            fig.update_layout(xaxis_title='X', yaxis_title='Y')
+        
+        fig.update_layout(title=title, width=800, height=600)
+        fig.show()
 
 
 # __________ UTILITY FUNCTIONS __________
