@@ -137,7 +137,7 @@ class PointsCloud:
             )
 
 
-    def prune_voxel(self, voxel_size: Union[float, Sequence[float]]) -> 'PointsCloud':
+    def subsample_voxel(self, voxel_size: Union[float, Sequence[float]]) -> 'PointsCloud':
         spatial = self.get_spatial()
         
         if isinstance(voxel_size, (int, float)):
