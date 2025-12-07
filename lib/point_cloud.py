@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import matplotlib
 from typing import Callable, List, Dict, Any, Optional, Tuple, Union, Sequence
-
+from scipy.ndimage import gaussian_filter1d
 import warnings
 
 
@@ -52,24 +52,125 @@ class PointsCloud:
 
 
 
+    @staticmethod
+    def _load_ply_with_fields(filepath: str) -> Tuple[np.ndarray, List[str], List[int]]:
+
+        try:
+            from plyfile import PlyData
+        except ImportError:
+            raise ImportError("PLY support requires 'plyfile'. Install via: pip install plyfile")
+
+        plydata = PlyData.read(filepath)
+        vertex = plydata['vertex']
+        n_points = len(vertex)
+
+        spatial_coords = ['x', 'y', 'z']
+        data_cols = []
+        field_names = []
+        field_dims = []
+
+        for coord in spatial_coords:
+            if coord not in vertex:
+                raise ValueError(f"PLY file missing '{coord}' property")
+            data_cols.append(vertex[coord])
+
+        all_props = [p.name for p in vertex.properties]
+        other_props = [p for p in all_props if p not in spatial_coords]
+
+        known_vector_groups = {
+            ('red', 'green', 'blue'): 'rgb',
+            ('nx', 'ny', 'nz'): 'normal',
+        }
+
+        used_props = set()
+        for props, group_name in known_vector_groups.items():
+            if all(p in other_props for p in props):
+                if group_name == 'rgb':
+                    # Read and normalize to [0,1]
+                    rgb = np.vstack([vertex[p] for p in props]).T.astype(float)
+                    if rgb.size > 0 and rgb.max() > 1.0:
+                        rgb = rgb / 255.0  # assume 0-255
+                    data_cols.append(rgb[:, 0])
+                    data_cols.append(rgb[:, 1])
+                    data_cols.append(rgb[:, 2])
+                else:
+                    # Generic vector
+                    vec = np.vstack([vertex[p] for p in props]).T
+                    for i in range(3):
+                        data_cols.append(vec[:, i])
+                field_names.append(group_name)
+                field_dims.append(3)
+                used_props.update(props)
+
+        for prop in other_props:
+            if prop in used_props:
+                continue
+            data_cols.append(vertex[prop])
+            field_names.append(prop)
+            field_dims.append(1)
+
+        data = np.column_stack(data_cols)
+        return data, field_names, field_dims
+
+
+
     @classmethod
 
     # __________ FILE METHODS __________
 
-    def from_file(cls, 
-                    filepath: str, 
-                    spatial_dims: int = 3,
-                    field_names: Optional[List[str]] = None,
-                    field_dimensions: Optional[List[int]] = None) -> 'PointsCloud':
+    def from_file(
+        cls,
+        filepath: str,
+        spatial_dims: int = 3,
+        field_names: Optional[List[str]] = None,
+        field_dimensions: Optional[List[int]] = None
+            ) -> 'PointsCloud':
 
-        try:
-            data = np.loadtxt(filepath)
+        filepath = Path(filepath)
+        if not filepath.exists():
+            raise FileNotFoundError(f"File not found: {filepath}")
 
-        except Exception as e:
-            raise IOError(f"Failed to load file {filepath}: {str(e)}")
+        suffix = filepath.suffix.lower()
 
+        if suffix in ('.txt', '.csv'):
+            try:
+                data = np.loadtxt(filepath, delimiter=',' if suffix == '.csv' else None)
+            except Exception as e:
+                raise IOError(f"Failed to load {suffix} file {filepath}: {e}")
 
-        return cls(data, spatial_dims, field_names, field_dimensions) 
+        elif suffix == '.npy':
+            try:
+                data = np.load(filepath)
+                if data.ndim != 2:
+                    raise ValueError(f".npy file must contain a 2D array, got shape {data.shape}")
+            except Exception as e:
+                raise IOError(f"Failed to load .npy file {filepath}: {e}")
+
+        elif suffix == '.ply':
+            try:
+                data, auto_field_names, auto_field_dims = cls._load_ply_with_fields(filepath)
+
+                if field_names is None:
+                    field_names = auto_field_names
+                if field_dimensions is None:
+                    field_dimensions = auto_field_dims
+                spatial_dims = 3
+
+            except Exception as e:
+                raise IOError(f"Failed to load .ply file {filepath}: {e}")
+
+        else:
+            raise ValueError(f"Unsupported file format: {suffix}. Supported: .txt, .csv, .npy, .ply")
+
+        if suffix != '.ply':
+            pass
+
+        return cls(
+            data=data,
+            spatial_dims=spatial_dims,
+            field_names=field_names,
+            field_dimensions=field_dimensions
+        )
 
     def to_file(self, file_path: str):
         np.savetxt(file_path, self.data, fmt='%.6f')
@@ -347,10 +448,110 @@ class PointsCloud:
         end = start + self.field_dimensions[idx]
         self.data[:, start:end] += offset
             
+    def normalize_field(self, field_name: str):
+        idx = self.field_names.index(field_name)
+        start = self.spatial_dims + sum(self.field_dimensions[:idx])
+        values = self.data[:, start]
+        vmin, vmax = np.min(values), np.max(values)
+        if vmax > vmin:
+            self.data[:, start] = (values - vmin) / (vmax - vmin)
+        else:
+            self.data[:, start] = 0.0
+    def remove_field(self, field_name: str):
+        if field_name not in self.field_names:
+            raise ValueError(f"Field '{field_name}' not found.")
+        idx = self.field_names.index(field_name)
+        start = self.spatial_dims + sum(self.field_dimensions[:idx])
+        end = start + self.field_dimensions[idx]
+        self.data = np.delete(self.data, slice(start, end), axis=1)
+        del self.field_names[idx]
+        del self.field_dimensions[idx]
+        self.total_dims = self.data.shape[1]
 
-    #def gaussian_smooth() - apply gaussian smooth ot scalar/vector field
 
-    #def compute_gradient() - compute gradient of scalar field
+    def gaussian_smooth(
+        self,
+        field_name: str,
+        sigma: float = 1.0,
+        coord_index: Optional[int] = None,
+        allow_unsorted: bool = False
+            ):
+        """
+        Apply 1D Gaussian smoothing to a scalar field.
+
+        Parameters:
+        -----------
+        field_name : str
+            Name of scalar field to smooth.
+        sigma : float
+            Standard deviation for Gaussian kernel (in index units after sorting).
+        coord_index : int or None
+            Spatial coordinate to sort by (e.g., 0 for X). Required unless allow_unsorted=True.
+        allow_unsorted : bool
+            If True, smooth along raw array order (not recommended for unordered clouds).
+        """
+        if field_name not in self.field_names:
+            raise ValueError(f"Field '{field_name}' not found.")
+        idx = self.field_names.index(field_name)
+        if self.field_dimensions[idx] != 1:
+            raise ValueError("Gaussian smoothing only supports scalar fields.")
+
+        if coord_index is None and not allow_unsorted:
+            raise ValueError(
+                "Point cloud appears unordered. Specify `coord_index` (e.g., 0 for X) to sort by, "
+                "or set `allow_unsorted=True` to smooth along raw index order (use with caution)."
+            )
+
+        start = self.spatial_dims + sum(self.field_dimensions[:idx])
+        values = self.data[:, start].copy()
+
+        if coord_index is not None:
+            if not (0 <= coord_index < self.spatial_dims):
+                raise ValueError(f"coord_index must be in [0, {self.spatial_dims - 1}]")
+            spatial = self.get_spatial()
+            order = np.argsort(spatial[:, coord_index])
+            values_sorted = values[order]
+            smoothed_sorted = gaussian_filter1d(values_sorted, sigma=sigma)
+            # Restore original order
+            inv_order = np.argsort(order)
+            smoothed = smoothed_sorted[inv_order]
+        else:
+            # allow_unsorted=True
+            warnings.warn(
+                "Smoothing along raw point index order. Ensure data is meaningfully ordered!",
+                UserWarning
+            )
+            smoothed = gaussian_filter1d(values, sigma=sigma)
+
+        self.data[:, start] = smoothed
+
+    def compute_gradient(self, field_name: str, coord_index: int = 0):
+        """
+        Approximate gradient along one spatial coordinate (assumes points sorted by it).
+        """
+        if field_name not in self.field_names:
+            raise ValueError(f"Field '{field_name}' not found.")
+
+        idx = self.field_names.index(field_name)
+
+        if self.field_dimensions[idx] != 1:
+            raise ValueError("Gradient only for scalar fields.")
+
+        spatial = self.get_spatial()
+        values = self.get_field(field_name).flatten()
+
+        # Sort by coordinate if not already
+        order = np.argsort(spatial[:, coord_index])
+        sorted_x = spatial[order, coord_index]
+        sorted_v = values[order]
+
+        grad = np.gradient(sorted_v, sorted_x)
+
+        # Return in original order
+        inv_order = np.argsort(order)
+        grad_original = grad[inv_order]
+
+        self.add_field(f'grad_{field_name}', grad_original, field_dim=1)
 
     # __________ VISUALIZATION __________
 
