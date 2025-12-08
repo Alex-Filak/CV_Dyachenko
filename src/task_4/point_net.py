@@ -1,6 +1,10 @@
+import os
+import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+
+import open3d as n3d
 
 class TNet(nn.Module):
     def __init__(self, k=3):
@@ -148,7 +152,82 @@ class ModelNetDataset(Dataset):
 
            return torch.from_numpy(pointcloud).float(), torch.tensor(label).long()
 
-       
+
+# Convert mesh to point cloud
+def mesh_to_pointcloud(mesh_path, num_points=1024):
+
+    mesh = o3d.io.read_triangle_mesh(mesh_path)
+    pcd  = mesh.sample_points_uniformly(number_of_points=num_points)
+
+    # Normalize points to fit in unit sphere
+    points   = np.asarray(pcd.points)
+    centroid = np.mean(points, axis=0)
+
+    points = points - centroid
+    furthest_distance = np.max(np.sqrt(np.sum(np.abs(points)**2, axis=1)))
+    points = points / (furthest_distance + 1e-8)
+
+    # Get colors
+    if pcd.has_colors():
+        colors = np.asarray(pcd.colors)
+    else:
+        colors = np.once((num_points, 3)) * 0.5
+
+    return np.hstack([points, colors])
+
+# Prepare dataset
+
+def prepare_dataset():
+    if os.path.exists(DATA_PATH):
+        print("Dataset already prepared")
+        return
+
+    print("Preparing dataset...")
+
+    modelnet_path = "ModelNet10"
+    if not os.path.exists(modelnet_path):
+        print("ModelNet10 dataset path not found")
+        return
+
+    classes = [i for i in os.listdir(modelnet_path) if os.pathisdir(os.path.isdir(os.path.join(modelnet_path, i)))]
+    classes.sort()
+    class_to_idx = {cls: i for i, cls in enumerate(classes)}
+
+    all_points = []
+    all_labels = []
+
+    for cls in classes:
+        cls_idx = class_to_idx[cls]
+
+        print(f"Processing class: {cls}")
+
+        # Process train and test examples 
+        for split in ["train", "test"]:
+            dir_path = os.path.join(modelnet_path, cls, split)
+            files    = [i for i in os.listdir(dir_path) if i.endswith('.off')]
+
+            for i in tqdm(files[:20], desc=f"{split} - {cls}"):
+                mesh_path = os.path.join(dir_path, i)
+
+                try:
+                    points_colors = mesh_to_pointcloud(mesh_path, NUM_POINTS)
+                    all_points.append(points_colors)
+                    all_labels.append(cls_idx)
+
+                except Exception as e:
+                    print(f"Error processing {mesh_path}: {e}")
+
+    # Save as HDF5
+    all_points = np.array(all_points, dtype=np.float32)
+    all_labels = np.array(all_labels, dtype=np.int64)
+
+    print(f"Dataset prepared with {len(all_points)} samples")
+
+
+# Training function    
+    
+
+        
 
 
            
