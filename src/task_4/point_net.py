@@ -288,7 +288,7 @@ def train():
         total_loss, correct, total = 0, 0, 0
 
         for data, target in tqdm(train_loader, desc=["Epoch {epoch+1}/{NUM_EPOCHS}"]):
-            data, target = data.to{DEVICE}, target.to{DEVICE}
+            data, target = data.to(DEVICE), target.to(DEVICE)
             optimize.zero_grad()
 
 
