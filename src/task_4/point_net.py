@@ -107,6 +107,56 @@ class PointNet(nn.Module):
 
 
         return x, input_transform, feature_transform
+
+class ModelNetDataset(Dataset):
+
+    def __init__(self, points, labels, augment=False):
+        self.points = points
+        self.labels = labels
+        self.augment = augment
+
+        def __len__(self):
+            return len(self.points)
+
+        def augment_pointcloud(self, pointcloud):
+            # Random rotation around z axis
+            theta = np.random.uniform(0, 2 *np.pi)
+            rotation_matrix = np.array([
+                [np.cos(theta), -np.sin(theta), 0],
+                [np.sin(theta),  np.cos(theta), 0],
+                [0, 0, 1]
+            ])
+
+            # Random scaling 
+            scale = np.random.uniform(0.8, 1.2)
+
+            coords = pointcloud[:, :3]
+            colors = pointcloud[:, 3:]
+
+            coords = coords @ rotation_matrix.T
+            coords = coords @ scale
+            coords += np.clip(0.01 * np.random.randn(*coords.shape), -0.02, 0.02)
+
+            return np.hstack([coords, colors])
+
+        def __getitem__(self, idx):
+           pointcloud = self.points[idx].copy()
+           label      = self.labels[idx]
+
+           if self.augment:
+               pointcloud = self.augment_pointcloud(pointcloud)
+
+           return torch.from_numpy(pointcloud).float(), torch.tensor(label).long()
+
+       
+
+
+           
+
+
+            
+            
+    
         
 
         
