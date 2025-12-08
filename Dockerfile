@@ -10,6 +10,17 @@ RUN conda install --quiet --yes -c conda-forge \
     plotly \
     plyfile \
     scipy \
+    h5py \
+    tqdm \
+    seaborn \
+    scikit-learn \
     && conda clean --all -f -y
+
+RUN pip install --no-cache_dir \
+    torch \
+    torchvision \
+    open3d \
+    ipywidgets
+
 
 USER ${NB_UID}
