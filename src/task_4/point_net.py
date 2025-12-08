@@ -399,7 +399,15 @@ def visualization(model, test_dataset, classes, num_examples=5):
     plt.savefig('predictions.png')
     plt.show()
 
-    
+if __name__ == "__main__":
+
+    prepare_dataset()
+
+    model, classes, test_dataset = train()
+
+    model.load_state_dict(torch.load{MODEL_PATH})
+
+    visualization(model, test_dataset, classes)
 
 
 
