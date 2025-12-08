@@ -6,6 +6,14 @@ import torch.nn.functional as F
 
 import open3d as n3d
 
+# train_frac - parametr for train data fraction
+# BATCH_SIZE
+# NUM_WORKERS
+# DEVICE
+# LEARNING_RATE
+# NUM_EPOCHS
+# MODEL_PATH
+
 class TNet(nn.Module):
     def __init__(self, k=3):
         super(TNet, self).__init__()
@@ -231,22 +239,135 @@ def prepare_dataset():
 
 # Training function    
 def train():
+    # Load dataset
+    with h5py.File(DATA_PATH, 'r') as file:
+        points = file['points'][:]
+        labels = file['labels'][:]
+        classes = [name.decode('utf-8') for name in file['classes'][:]]
+
+    # Create dataset 
+    dataset = ModelNetDataset(points, labels, augment=True)
+    train_size = int(train_frac * len(dataset))
+    test_size  = len(dataset) - train_size
+
+    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
+
+    train_loader = DataLoader(traind_dataset, batch_size=BATCH_SIZE, shuffle=True, num_wokers=NUM_WORKERS)
+    test_loader  = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
+
+    # Initialize model
+    model = PointNet(num_classes=len(classes)).to{DEVICE}
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parametrs(), lr=LEARNING_RATE)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
+
+    # Traning history
+    train_losses, test_losses = [], []
+    train_accs, test_accs     = [], []
+    best_acc = 0
+
+
+    print("Starting training...")
+
+    for epoch in range(NUM_EPOCHS):
+        model.train()
+        total_loss, correct, total = 0, 0, 0
+
+        for data, target in tqdm(train_loader, desc=["Epoch {epoch+1}/{NUM_EPOCHS}"]):
+            data, target = data.to{DEVICE}, target.to{DEVICE}
+            optimize.zero_grad()
+
+
+            # Forward path
+            output, input_transform, feature_transform = model(data)
+            loss = criterion(output, target)
+            loss += 0.001 * feature_transform_regularizer(input_transform)
+            loss += 0.001 * feature_transform_regularizer(feature_transform)
+
+            # Backward path
+            loss.backward()
+            optimizer.step()
+
+
+            # Statistics
+            total_loss += loss.item()
+            pred        = output.argmax(dim=1, keepdim=True)
+            correct     = pred.eq(target.view(pred)).sum().item()
+            total      += target.size(0)
+
+        train_loss = total_loss / len(train_loader) 
+        train_acc  = 100. * correct / total
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
+
+        # Evaluation
+        model.eval()
+        total_loss, correct, total = 0, 0, 0
+        all_preds, all_targets = [], []
+
+
+        with torch.no_grad():
+            for data, target in test_loader:
+                data, target = data.to(DEVICE), target.to(DEVICE)
+                output, _, _ = model(data)
+                loss         = criterion(output, target)
+                total_loss   =loss.item
+
+                pred         = output.argmax(dim=1, keepdim=True)
+                correct      = pred.eq(target.view_as(pred)).sum().item()
+
+                all_preds.extend(pred.cpu().numpy())
+                all_targets.extend(target.cpu().numpy())
+
+        test_loss = total_loss / len(test_loader)
+        test_acc  = 100. * correct / total
+        test_losses.append(test_loss)
+        test_accs.append(test_acc)
+
+        print(f"Epoch {epoch+1}/{NUM_EPOCHS}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, "
+              f"Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.2f}%")
+
+        # Save model
+        if test_acc > best_acc:
+            best_acc = test_acc
+            torch.save(model.state_dict(), MODEL_PATH)
+            best_preds = np.array(all_preds)
+            best_targets = np.array(all_targets)
+
+        scheduler.step()
+
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(train_losses, label='Train loss')
+    plt.plot(test_losses, label='Test loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 1)
+    plt.plot(train_accs, label='Train Accuracy')
+    plt.plot(test_accs, label='Test Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
+    plt.legend()
+    plt.savefig("training_history.png")
+
+    # Plot confusion matrix
+    cm = confusion_matrix(best_targets, best_preds)
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=classes, yticklabels=classes)
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title('Confusion Matrix')
+    plt.savefig('confusion_matrix.png')
     
-    
-
-        
-
-
-           
+    print(f"Training complete. Best test accuracy: {best_acc:.2f}%")
+    return model, classes, test_dataset
 
 
             
+
+
+
             
-    
-        
-
-        
-
-
-        
-        
+   
