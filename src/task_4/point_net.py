@@ -98,7 +98,7 @@ class PointNet(nn.Module):
         self.bn4 = nn.BatckNormed(512)
         self.bn5 = nn.BatckNormed(256)
 
-    def(self, x):
+    def forward(self, x):
         # x_shape (batch_size, num_points, 3)
         x = x[:, :, :3]
 
