@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import matplotlib
+
+from pathlib import Path
 from typing import Callable, List, Dict, Any, Optional, Tuple, Union, Sequence
 from scipy.ndimage import gaussian_filter1d
 import warnings
@@ -132,7 +134,7 @@ class PointsCloud:
 
         suffix = filepath.suffix.lower()
 
-        if suffix in ('.txt', '.csv'):
+        if suffix in ('.xyz', '.txt', '.csv'):
             try:
                 data = np.loadtxt(filepath, delimiter=',' if suffix == '.csv' else None)
             except Exception as e:
@@ -180,8 +182,8 @@ class PointsCloud:
         return PointsCloud(
             self.data.copy(),
             spatial_dims = self.spatial_dims,
-            field_names = self.field_names,
-            field_dimensions = self.field_dimension
+            field_names = self.field_names.copy(),
+            field_dimensions = self.field_dimensions.copy()
             )
         
 
@@ -525,31 +527,119 @@ class PointsCloud:
 
         self.data[:, start] = smoothed
 
-    def compute_gradient(self, field_name: str, coord_index: int = 0):
+    def moving_average(
+        self,
+        field_name: str,
+        window_size: int = 5,
+        coord_index: Optional[int] = None
+        ):
         """
-        Approximate gradient along one spatial coordinate (assumes points sorted by it).
+        Apply moving average smoothing to a scalar field.
+
+        The field is smoothed along a spatial coordinate (to ensure geometric meaning).
+
+        Parameters:
+        -----------
+        field_name : str
+            Name of the scalar field to smooth.
+        window_size : int
+            Size of the moving window (must be odd and >= 1).
+        coord_index : int
+            Spatial coordinate to sort by (0=X, 1=Y, 2=Z). Required.
+
+        Modifies the field in-place.
         """
         if field_name not in self.field_names:
             raise ValueError(f"Field '{field_name}' not found.")
 
         idx = self.field_names.index(field_name)
-
         if self.field_dimensions[idx] != 1:
-            raise ValueError("Gradient only for scalar fields.")
+            raise ValueError("Moving average smoothing only supports scalar fields.")
+
+        if coord_index is None:
+            raise ValueError("Must specify coord_index (e.g., 0 for X) to sort by.")
+
+        if not (0 <= coord_index < self.spatial_dims):
+            raise ValueError(f"coord_index must be in [0, {self.spatial_dims - 1}]")
+
+        if window_size < 1 or window_size % 2 == 0:
+            warnings.warn("window_size should be odd and >= 1 for symmetric smoothing.", UserWarning)
+
+        # Get field data and spatial coordinates
+        start_col = self.spatial_dims + sum(self.field_dimensions[:idx])
+        values = self.data[:, start_col].copy()
+        spatial = self.get_spatial()
+
+        # Sort by specified coordinate
+        order = np.argsort(spatial[:, coord_index])
+        values_sorted = values[order]
+
+        # Apply moving average
+        weights = np.ones(window_size) / window_size
+        smoothed_sorted = np.convolve(values_sorted, weights, mode='same')
+
+        # Restore original point order
+        inv_order = np.argsort(order)
+        self.data[:, start_col] = smoothed_sorted[inv_order]
+
+    def compute_gradient(self, field_name: str, coord_index: int = 0, tol: float = 1e-8):
+        """
+        Compute gradient of a scalar field along a spatial coordinate.
+
+        Handles duplicate coordinates by:
+        - Using unique sorted points (averaging field values at duplicates)
+        - Computing gradient on clean grid
+        - Interpolating back to original points
+
+        Parameters:
+        -----------
+        field_name : str
+            Name of scalar field.
+        coord_index : int
+            Spatial axis to differentiate along (0=X, 1=Y, 2=Z).
+        tol : float
+            Tolerance for considering coordinates as duplicates.
+        """
+        if field_name not in self.field_names:
+            raise ValueError(f"Field '{field_name}' not found.")
+        idx = self.field_names.index(field_name)
+        if self.field_dimensions[idx] != 1:
+            raise ValueError("Gradient only supports scalar fields.")
 
         spatial = self.get_spatial()
         values = self.get_field(field_name).flatten()
+        x = spatial[:, coord_index].copy()
 
-        # Sort by coordinate if not already
-        order = np.argsort(spatial[:, coord_index])
-        sorted_x = spatial[order, coord_index]
-        sorted_v = values[order]
+        # Sort by coordinate
+        order = np.argsort(x)
+        x_sorted = x[order]
+        v_sorted = values[order]
 
-        grad = np.gradient(sorted_v, sorted_x)
+        # Handle duplicates: group by coordinate (within tolerance)
+        unique_x, inverse_idx, counts = np.unique(
+            np.round(x_sorted / tol) * tol,  # bin to tolerance
+            return_inverse=True,
+            return_counts=True
+        )
 
-        # Return in original order
+        # Average field values at duplicate locations
+        unique_v = np.zeros_like(unique_x)
+        for i in range(len(unique_x)):
+            mask = inverse_idx == i
+            unique_v[i] = np.mean(v_sorted[mask])
+
+        # Compute gradient on unique points
+        if len(unique_x) < 2:
+            grad_unique = np.zeros_like(unique_x)
+        else:
+            grad_unique = np.gradient(unique_v, unique_x)
+
+        # Map gradient back to original points
+        grad_full = grad_unique[inverse_idx]
+
+        # Restore original order
         inv_order = np.argsort(order)
-        grad_original = grad[inv_order]
+        grad_original = grad_full[inv_order]
 
         self.add_field(f'grad_{field_name}', grad_original, field_dim=1)
 
