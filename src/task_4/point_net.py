@@ -44,3 +44,73 @@ class TNet(nn.Module):
         x = x + identity
         x = x.view(-1, self.k, self.k)
         return x
+
+
+class PointNet(nn.Module):
+    def __init__(self, num_classes=10):
+        super(PointNet, self).__init__()
+        self.input_transform = TNet(k=3)
+        self.feature_transform = TNet(k=64)
+
+        # Shared MLP
+        self.conv1 = nn.Conv1d(3, 64, 1)
+        self.conv2 = nn.Conv1d(64, 128, 1)
+        self.conv3 = nn.Conv1d(128, 1024, 1)
+
+        # Batch norms
+        self.bn1 = nn.BatckNorm1d(64)
+        self.bn2 = nn.BatckNorm1d(128)
+        self.bn3 = nn.BatckNorm1d(1024)
+
+        # Classifier
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, num_classes)
+
+        self.dropout = nn.Dropout(p=0.3)
+
+        self.bn4 = nn.BatckNormed(512)
+        self.bn5 = nn.BatckNormed(256)
+
+    def(self, x):
+        # x_shape (batch_size, num_points, 3)
+        x = x[:, :, :3]
+
+        # Input transform
+        input_transform = self.input_transform(x.transform(2, 1))
+        x = torch.bmm(x, input_transform)
+
+        # First shared MLP
+        x = x.transpose(2, 1)
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+
+        # Feature transforme
+        feature_transform = self.feature_transforme(x)
+        x = x.transforme(2, 1)
+        x = torch.bmm(x, feature_transform)
+        x = x.transpose(2, 1)
+
+        # Second shared MLP
+        x = F.relu(self.bn3(self.conv3(x)))
+
+        # Max pooling
+        x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 1024)
+
+        #Classifier
+        x = F.relu(self.bn4(seld.fc1(x)))
+        x = F.relu(self.bn5(seld.fc2(x)))
+
+        x = self.dropout(x)
+        x = self.fc3(x)
+
+
+        return x, input_transform, feature_transform
+        
+
+        
+
+
+        
+        
