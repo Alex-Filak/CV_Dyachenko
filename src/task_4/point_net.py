@@ -16,15 +16,17 @@ import open3d as n3d
 
 import matplotlib.pyplot as plt
 
+from config import *
 
 
-# train_frac - parametr for train data fraction
-# BATCH_SIZE
-# NUM_WORKERS
+
+# TRAIN_FRAC = 0.8 - parametr for train data fraction
+# BATCH_SIZE = 32
+# NUM_WORKERS 
 # DEVICE
-# LEARNING_RATE
-# NUM_EPOCHS
-# MODEL_PATH
+# LEARNING_RATE = 0.001
+# NUM_EPOCHS = 25
+# MODEL_PATH = ""
 
 class TNet(nn.Module):
     def __init__(self, k=3):
@@ -259,7 +261,7 @@ def train():
 
     # Create dataset 
     dataset = ModelNetDataset(points, labels, augment=True)
-    train_size = int(train_frac * len(dataset))
+    train_size = int(TRAIN_FRAC * len(dataset))
     test_size  = len(dataset) - train_size
 
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
