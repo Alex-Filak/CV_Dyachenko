@@ -364,6 +364,44 @@ def train():
     print(f"Training complete. Best test accuracy: {best_acc:.2f}%")
     return model, classes, test_dataset
 
+# Visualization function
+def visualization(model, test_dataset, classes, num_examples=5):
+    model.eval()
+    indices = np.random.choice(len(test_dataset), num_examples, replace=False)
+
+    plt.figure(figsize=(15, 10))
+    for i, idx in enumerate(indices):
+        points, label = test_dataset[idx]
+        points_batch = points.unsqueeze(0).to(DEVICE)
+        
+        with torch.no_grad():
+            output, _, _ = model(points_batch)
+        
+        pred = output.argmax(dim=1).item()
+        points_np = points.cpu().numpy()
+        
+        ax = plt.subplot(2, 3, i+1, projection='3d')
+        x, y, z = points_np[:, 0], points_np[:, 1], points_np[:, 2]
+        colors = points_np[:, 3:6]
+        if colors.max() > 1:
+            colors = colors / 255.0
+        
+        ax.scatter(x, y, z, c=colors, s=1, alpha=0.6)
+        title = f"True: {classes[label]}\nPred: {classes[pred]}"
+        if pred != label:
+            title += " (INCORRECT)"
+        ax.set_title(title)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_zticks([])
+
+    plt.tight_layout()
+    plt.savefig('predictions.png')
+    plt.show()
+
+    
+
+
 
             
 
