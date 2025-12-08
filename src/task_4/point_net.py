@@ -198,6 +198,25 @@ def mesh_to_pointcloud(mesh_path, num_points=1024):
     return np.hstack([points, colors])
 
 # Prepare dataset
+def download_dataset(dest_dir="ModelNet10"):
+    if os.path.exists(dest_dir):
+        print(f" {dest_dir} already exists!")
+        return
+
+    url = "http://3dvision.princeton.edu/projects/2014/3DShapeNets/ModelNet10.zip"
+    zip_path = "ModelNet10.zip"
+    
+    print("Downloading ModelNet10 ...")
+    response = requests.get(url, stream=True)
+    total_size = int(response.headers.get('content-length', 0))
+    
+    with open(zip_path, 'wb') as f:
+        for chunk in tqdm(response.iter_content(chunk_size=8192), total=total_size//8192):
+            f.write(chunk)
+    
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(".")
+    
 
 def prepare_dataset():
     if os.path.exists(DATA_PATH):
@@ -414,6 +433,8 @@ def visualization(model, test_dataset, classes, num_examples=5):
     plt.show()
 
 if __name__ == "__main__":
+
+    download_dataset()
 
     prepare_dataset()
 
