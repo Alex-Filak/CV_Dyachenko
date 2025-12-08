@@ -221,10 +221,17 @@ def prepare_dataset():
     all_points = np.array(all_points, dtype=np.float32)
     all_labels = np.array(all_labels, dtype=np.int64)
 
+    with h5py.File(DATA_PATH, 'w') as file:
+        file.create_dataset('points', data=all_points)
+        file.create_dataset('labels', data=all_labels)
+        file.create_dataset('classes', data=np.array(classes, dtype='5'))
+
     print(f"Dataset prepared with {len(all_points)} samples")
 
 
 # Training function    
+def train():
+    
     
 
         
