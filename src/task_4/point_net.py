@@ -270,7 +270,7 @@ def train():
     test_loader  = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
 
     # Initialize model
-    model = PointNet(num_classes=len(classes)).to{DEVICE}
+    model = PointNet(num_classes=len(classes)).to(DEVICE)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parametrs(), lr=LEARNING_RATE)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
