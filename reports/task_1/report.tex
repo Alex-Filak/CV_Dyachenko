@@ -1,0 +1,188 @@
+% Created 2025-12-09 Tue 17:54
+% Intended LaTeX compiler: pdflatex
+\documentclass[a4paper,14pt]{extarticle}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage[english, main=russian, russian]{babel}
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setdefaultlanguage{russian}
+\setotherlanguage{english}
+\setmainfont{CMU Serif}
+\setsansfont{CMU Sans Serif}
+\setmonofont{CMU Typewriter Text}
+\usepackage{svg}
+\usepackage{xcolor}
+\usepackage{caption}
+\newcommand{\incsvg}[2][]{\begin{center}\includesvg[width=\textwidth]{#2}\captionof{figure}{#1}\end{center}}
+\usepackage{titlesec}
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection}{1em}{}
+\usepackage{multicol}
+\setlength{\columnsep}{1cm}
+\setlength{\parindent}{0pt}
+\usepackage[left=1.2cm,right=1.2cm,top=1cm,bottom=2cm]{geometry}
+\linespread{1}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{mathtools}
+\usepackage{array}
+\usepackage{float}
+\restylefloat{table}
+\renewcommand{\arraystretch}{1.7}
+\date{\today}
+\title{}
+\hypersetup{
+ pdfauthor={},
+ pdftitle={},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={Emacs 29.3 (Org mode 9.8-pre)}, 
+ pdflang={Russian}}
+\begin{document}
+
+\begin{center}
+МФТИ\\
+
+\vspace{6cm}
+
+
+
+\begin{large}
+\textbf{Отечет по практическим заданиям} \\
+\textbf{1b и 2b}
+
+
+\vspace{3cm}
+
+\textbf{Филак Александр}
+
+\end{large}
+\vspace{9cm}
+
+
+\vspace{2cm}
+
+Долгопрудный \\
+2025
+\pagebreak
+\end{center}
+\section{Введение}
+\label{sec:orgbb4adf1}
+
+В рамках двух практических заданий были изучены и реализованы методы обработки облаков точек с использованием Python и библиотеки NumPy. Задание 1b было посвящено методам субдискретизации (downsampling) облаков точек, а задание 2b — методам пространственной фильтрации и выделения областей по геометрическим признакам. Оба задания направлены на освоение базовых операций предобработки точечных данных, которые являются критически важными для последующего анализа в компьютерном зрении, робототехнике и 3D-моделировании.
+\section{Задание 1b: Субдискретизация облаков точек}
+\label{sec:orgef36379}
+
+Целью данного задания было освоение различных методов уменьшения плотности облаков точек при сохранении их ключевых геометрических характеристик.
+\subsection{Методы реализации}
+\label{sec:org43627cb}
+
+Были реализованы три метода субдискретизации:
+
+\begin{enumerate}
+\item \textbf{Случайная выборка (Random subsampling)} — равномерный случайный выбор N точек из исходного облака. Наиболее быстрый, но может терять важные детали.
+
+\item \textbf{Воксельная сетка (Voxel grid subsampling)} — пространство делится на равные ячейки (вокселы), в каждой из которых остаётся только одна точка. Эффективно уменьшает плотность в равномерно заполненных областях.
+
+\item \textbf{Выбор наиболее удалённых точек (Farthest Point Sampling)} — итеративный выбор точек, максимально удалённых от уже выбранных. Наиболее эффективно сохраняет геометрию, но требует больше вычислений.
+\end{enumerate}
+\subsection{Визуализация результатов}
+\label{sec:org83f2741}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/orig_pc.png}
+\caption{Исходное облако точек}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/random_subsample.png}
+\caption{Случайная субдискретизация (50\%)}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/voxel_subsample.png}
+\caption{Воксельная субдискретизация (размер вокселя 0.001)}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/fps_subsample.png}
+\caption{Выбор наиболее удалённых точек (FPS)}
+\end{figure}
+\subsection{Анализ результатов}
+\label{sec:org40d39e7}
+
+\begin{enumerate}
+\item \textbf{Влияние размера выборки на визуальное качество}: При уменьшении выборки до 50\% случайным методом заметна потеря мелких деталей и появление "дыр" в равномерных областях.
+
+\item \textbf{Влияние размера вокселя}: При размере вокселя 0.001 сохраняется больше деталей по сравнению с бóльшими размерами. Мелкий воксель лучше сохраняет геометрию, но даёт меньшую степень сжатия.
+
+\item \textbf{Эффективность по времени}: Случайная выборка — самый быстрый метод (\textasciitilde{}0.001 с), воксельная сетка
+(\textasciitilde{}1.0 с) и FPS (\textasciitilde{}1.0 с) — существенно более медленные.
+
+\item \textbf{Сохранение геометрии}: FPS лучше всего сохраняет геометрические особенности объекта, воксельная сетка хорошо сохраняет равномерное покрытие, случайная выборка может терять важные детали.
+\end{enumerate}
+\section{Задание 2b: Выделение областей в облаках точек}
+\label{sec:orgfc73515}
+
+Целью данного задания было освоение методов пространственной фильтрации точек по различным геометрическим критериям.
+\subsection{Методы реализации}
+\label{sec:org9fc0bc0}
+
+Были реализованы три метода фильтрации:
+
+\begin{enumerate}
+\item \textbf{Ограничивающий параллелепипед (Bounding Box)} — выделение точек, попадающих в заданный диапазон координат.
+
+\item \textbf{Фильтр по высоте} — выделение точек выше определённого уровня (Z > порогового значения).
+
+\item \textbf{Фильтр по радиусу} — выделение точек в пределах заданного радиуса от центральной точки.
+\end{enumerate}
+\subsection{Визуализация результатов}
+\label{sec:org201380b}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/bbox_subsample.png}
+\caption{Выделение области ограничивающим параллелепипедом}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/height_restriction.png}
+\caption{Фильтрация по высоте (верхние точки)}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/in_radius.png}
+\caption{Выделение точек в заданном радиусе}
+\end{figure}
+\section{Выводы}
+\label{sec:orgb9140fd}
+
+\begin{enumerate}
+\item Для быстрого уменьшения объёма данных без сохранения точной геометрии достаточно случайной выборки.
+
+\item Для сохранения геометрических особенностей при уменьшении плотности оптимален метод FPS, несмотря на его вычислительную сложность.
+
+\item Воксельная сетка представляет собой хороший компромисс между скоростью и сохранением структуры.
+
+\item Пространственная фильтрация позволяет эффективно выделять значимые области для последующего анализа.
+
+\item Сочетание методов субдискретизации и фильтрации позволяет создавать гибкие конвейеры предобработки 3D-данных для различных прикладных задач.
+\end{enumerate}
+\section{Заключение}
+\label{sec:org9558079}
+
+В ходе выполнения заданий были успешно освоены базовые методы обработки облаков точек с использованием Python и NumPy. Полученные навыки субдискретизации и пространственной фильтрации являются фундаментальными для работы с 3D-данными в таких областях, как компьютерное зрение, робототехника, автономные системы и 3D-моделирование. Реализованные алгоритмы могут быть использованы как самостоятельные инструменты, так и в качестве этапов предобработки в более сложных конвейерах обработки точечных данных.
+\end{document}

@@ -1,0 +1,335 @@
+% Created 2025-12-09 Tue 19:10
+% Intended LaTeX compiler: pdflatex
+\documentclass[a4paper,14pt]{extarticle}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage[english, main=russian, russian]{babel}
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setdefaultlanguage{russian}
+\setotherlanguage{english}
+\setmainfont{CMU Serif}
+\setsansfont{CMU Sans Serif}
+\setmonofont{CMU Typewriter Text}
+\usepackage{svg}
+\usepackage{xcolor}
+\usepackage{caption}
+\newcommand{\incsvg}[2][]{\begin{center}\includesvg[width=\textwidth]{#2}\captionof{figure}{#1}\end{center}}
+\usepackage{titlesec}
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection}{1em}{}
+\usepackage{multicol}
+\setlength{\columnsep}{1cm}
+\setlength{\parindent}{0pt}
+\usepackage[left=1.2cm,right=1.2cm,top=1cm,bottom=2cm]{geometry}
+\linespread{1}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{mathtools}
+\usepackage{array}
+\usepackage{float}
+\restylefloat{table}
+\renewcommand{\arraystretch}{1.7}
+\date{\today}
+\title{}
+\hypersetup{
+ pdfauthor={},
+ pdftitle={},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={Emacs 29.3 (Org mode 9.8-pre)}, 
+ pdflang={Russian}}
+\begin{document}
+
+\begin{center}
+МФТИ\\
+
+\vspace{6cm}
+
+
+
+\begin{large}
+\textbf{Отечет по практическим заданиям} \\
+\textbf{1b и 2b}
+
+
+\vspace{3cm}
+
+\textbf{Филак Александр}
+
+\end{large}
+\vspace{9cm}
+
+
+\vspace{2cm}
+
+Долгопрудный \\
+2025
+\pagebreak
+\end{center}
+\section{ОТЧЁТ ПО ПРАКТИЧЕСКИМ ЗАДАНИЯМ 2 И 4}
+\label{sec:org9c52ccd}
+
+\subsection{Введение}
+\label{sec:orgcd06e18}
+
+В рамках двух практических заданий были изучены и реализованы методы работы с облаками точек, включая визуализацию с использованием цветовой информации и обработку скалярных полей. Задание 2 было посвящено различным способам назначения цветов точкам и их визуализации в 2D и 3D. Задание 4 охватывало работу со скалярными полями: их создание, преобразование, фильтрацию и визуализацию. Оба задания демонстрируют важные аспекты предобработки и анализа трёхмерных данных.
+\subsection{Теоретическая часть}
+\label{sec:org4a0d4e3}
+
+\subsubsection{Облако точек}
+\label{sec:org21cd31c}
+
+Облако точек — это набор точек в трёхмерном пространстве, каждая из которых имеет координаты (X, Y, Z). В дополнение к координатам точки могут содержать дополнительную информацию: цвет (RGB), интенсивность, нормали или произвольные скалярные поля. Облака точек широко используются в компьютерном зрении, робототехнике, картографии и 3D-моделировании.
+\subsubsection{Цветовое представление RGB}
+\label{sec:orga43d80b}
+
+Цвет в модели RGB представляется тремя компонентами: красным (R), зелёным (G) и синим (B). Каждый компонент может принимать значения от 0 до 1 (нормализованная форма) или от 0 до 255 (целочисленная форма). Комбинация этих компонентов создаёт итоговый цвет точки.
+\subsubsection{Скалярные поля}
+\label{sec:org28e484f}
+
+Скалярное поле — это функция, сопоставляющая каждой точке пространства некоторое скалярное значение. В контексте облаков точек скалярное поле обычно представлено как дополнительный столбец данных, связанный с каждой точкой. Примеры скалярных полей: высота, температура, интенсивность отражения лидара, расстояние до центра и т.д.
+\subsection{Задание 2: Работа с цветами в облаках точек}
+\label{sec:orgc0eb7fc}
+
+\subsubsection{Постановка задачи}
+\label{sec:org121ce49}
+
+Цель задания — освоить методы визуализации облаков точек с цветовой информацией, научиться назначать цвета точкам на основе их координат и других параметров, сравнить возможности статичной (Matplotlib) и интерактивной (Plotly) визуализации.
+\subsubsection{Ход выполнения}
+\label{sec:org8d56385}
+
+\begin{enumerate}
+\item 1. Генерация облака точек
+\label{sec:org8678194}
+
+Было создано равномерно распределённое облако из 1000 точек в кубе [0, 1]\textsuperscript{3}.
+\item 2. Назначение цветов по координатам
+\label{sec:org5da6f0e}
+
+Цвет каждой точке был назначен на основе её координат:
+\begin{itemize}
+\item Красный компонент = координата X
+\item Зелёный компонент = координата Y
+\item Синий компонент = координата Z
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task2_vis_matplotlib.jpg}
+\caption{2D-визуализация в Matplotlib (RGB = XYZ)}
+\end{figure}
+\item 3. 3D-визуализация в Plotly
+\label{sec:orga4acaf3}
+
+Создана интерактивная 3D-визуализация, позволяющая вращать сцену, приближать и удалять объект.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task2_visualization_plotly.png}
+\caption{3D-визуализация в Plotly}
+\end{figure}
+\item 4. Альтернативная схема раскраски
+\label{sec:org8e32436}
+
+Реализована схема раскраски на основе расстояния от точки до центра куба (0.5, 0.5, 0.5). Точки, близкие к центру, окрашены в холодные тона (синий), а удалённые — в тёплые (красный/жёлтый).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task2_alt_col_scheme.jpg}
+\caption{Альтернативная схема раскраски (расстояние до центра)}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task2_alt_col_scheme_plotly.png}
+\caption{3D-визуализация альтернативной схемы в Plotly}
+\end{figure}
+\end{enumerate}
+\subsubsection{Анализ результатов}
+\label{sec:orgb9a95e5}
+
+\begin{enumerate}
+\item \textbf{Связь цвета и координат}: Метод RGB=XYZ интуитивно понятен и позволяет визуально оценить распределение точек в пространстве.
+
+\item \textbf{Статичная vs интерактивная визуализация}: Matplotlib подходит для быстрых 2D-просмотров, Plotly — для детального исследования 3D-структур благодаря возможности вращения и масштабирования.
+
+\item \textbf{Альтернативные схемы}: Раскраска по расстоянию до центра эффективно выделяет пространственную структуру облака, особенно в 3D-представлении.
+\end{enumerate}
+\subsection{Задание 4: Работа со скалярными полями}
+\label{sec:org55e39cd}
+
+\subsubsection{Постановка задачи}
+\label{sec:orgab9246b}
+
+Цель задания — освоить методы создания, преобразования и анализа скалярных полей, связанных с облаками точек, включая операции сглаживания, вычисления градиента, фильтрации и визуализации.
+\subsubsection{Ход выполнения}
+\label{sec:org2367295}
+
+Работа проводилась с облаком точек "Рождественский медведь" (40 000 точек после субдискретизации).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task_4_init_vis.png}
+\caption{Исходное облако точек "Рождественский медведь"}
+\end{figure}
+\begin{enumerate}
+\item 1-3. Базовые операции со скалярными полями
+\label{sec:orge87f698}
+
+Созданы два скалярных поля:
+\begin{itemize}
+\item \textbf{const\textsubscript{field}}: постоянное поле со значением 10.0
+\item \textbf{height}: поле высоты (координата Z)
+\end{itemize}
+
+Продемонстрированы операции:
+\begin{itemize}
+\item Умножение поля на число (const\textsubscript{field} × 3 = 30.0)
+\item Сложение с числом (30.0 - 5 = 25.0)
+\end{itemize}
+
+Результат: постоянное поле осталось константным после операций.
+\item 4. Гауссово сглаживание
+\label{sec:org13cdde0}
+
+Применено гауссово сглаживание к полю зашумлённой высоты (\textbf{noised\textsubscript{height}}). Для постоянного поля сглаживание не даёт эффекта.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task4_without_gauss_smoth.png}
+\caption{Поле высоты без сглаживания}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task4_with_gauss_smooth.png}
+\caption{Поле высоты после гауссова сглаживания}
+\end{figure}
+\item 5. Вычисление градиента
+\label{sec:org539a06d}
+
+Вычислен градиент поля высоты. Для постоянного поля градиент равен нулю.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task4_high_field_without_grad.png}
+\caption{Поле высоты}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task4_high_field_with_grad.png}
+\caption{Градиент поля высоты (почти постоянный)}
+\end{figure}
+\item 6. Сглаживание скользящим средним
+\label{sec:org09de89d}
+
+Применён фильтр скользящего среднего к зашумлённому полю высоты.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task4_ma_noised_height_without_filter.png}
+\caption{Зашумлённая высота без фильтра}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task4_ma_noised_height_with_filter.png}
+\caption{Зашумлённая высота после фильтра скользящего среднего}
+\end{figure}
+\item 7. Преобразование скалярного поля в RGB
+\label{sec:orga0639cd}
+
+Скалярные поля преобразованы в цвета с использованием цветовой карты \textbf{viridis}.
+\item 8. Статистический анализ
+\label{sec:org02330a3}
+
+Вычислены статистические параметры полей:
+
+\begin{center}
+\begin{tabular}{lrrrrr}
+Поле & Среднее & Ст. отклонение & Минимум & Максимум & Медиана\\
+\hline
+const\textsubscript{field} & 25.000000 & 0.00000 & 25.000000 & 25.000000 & 25.0000\\
+height\textsubscript{field} & -6.420886 & 111.32608 & -214.142593 & 214.158005 & -7.8196\\
+\end{tabular}
+\end{center}
+\item 9-10. Нормализация и интерполяция
+\label{sec:org40c6e5d}
+
+Поля нормализованы в диапазон [0, 1]. Реализована интерполяция пропущенных значений (NaN) с использованием линейной интерполяции.
+\item 11. Фильтрация по значению поля
+\label{sec:orgf8a22b9}
+
+Выполнена фильтрация точек по значениям скалярных полей:
+\begin{itemize}
+\item const\textsubscript{field}: все точки (значение 25.0 в диапазоне [0, 26])
+\item height: точки с высотой от -100 до 100
+\end{itemize}
+
+После фильтрации получено подмножество точек.
+\item 12. Использование скалярного поля как координаты
+\label{sec:org1d13237}
+
+Продемонстрирована возможность замены координаты Z на значение скалярного поля.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{./img/task4_use_scalar_as_z.png}
+\caption{Использование скалярного поля как координаты Z}
+\end{figure}
+\item 13. Удаление скалярного поля
+\label{sec:org53b7574}
+
+Продемонстрирована операция удаления скалярного поля из облака точек.
+\end{enumerate}
+\subsubsection{Анализ результатов}
+\label{sec:org74b9d67}
+
+\begin{enumerate}
+\item \textbf{Операции с полями}: Базовые операции (сложение, умножение) работают корректно, что подтверждает гибкость работы со скалярными полями.
+
+\item \textbf{Сглаживание}: Гауссов фильтр и скользящее среднее эффективно уменьшают шум в данных, что особенно важно для зашумлённых измерений.
+
+\item \textbf{Градиент}: Вычисление градиента позволяет выделять области с быстрым изменением значений поля, что полезно для анализа рельефа или других пространственных характеристик.
+
+\item \textbf{Визуализация}: Преобразование скалярных полей в цвета с помощью цветовых карт делает данные более наглядными и интерпретируемыми.
+\end{enumerate}
+\subsection{Ответы на контрольные вопросы}
+\label{sec:orgf8ebb9b}
+
+\begin{enumerate}
+\item \textbf{Почему для RGB значения используются числа от 0 до 1 или от 0 до 255?}
+Диапазоны 0-1 и 0-255 являются стандартными представлениями интенсивности цвета. Первый удобен для вычислений с плавающей точкой, второй — для хранения и отображения.
+
+\item \textbf{Как можно задать цвет точек на основе скалярной величины?}
+Скалярное значение нормализуется в диапазон [0, 1], затем применяется цветовая карта (colormap), которая сопоставляет каждому значению цвет RGB.
+
+\item \textbf{Чем отличается статичная визуализация (Matplotlib) от интерактивной (Plotly)?}
+Matplotlib создаёт статические изображения, Plotly — интерактивные веб-визуализации с возможностью вращения, масштабирования, выделения областей.
+
+\item \textbf{Как выбрать подходящую цветовую карту?}
+Для последовательных данных (высота, температура) подходят плавные карты (viridis, plasma), для категориальных данных — дискретные карты (tab10, Set3).
+
+\item \textbf{Что произойдёт, если не нормализовать значения при генерации цветов?}
+Цвета будут некорректными: значения за пределами [0, 1] будут обрезаны, что приведёт к потере информации и искажению визуализации.
+\end{enumerate}
+\subsection{Выводы}
+\label{sec:org666f054}
+
+\begin{enumerate}
+\item \textbf{Задание 2}: Освоены методы визуализации облаков точек с цветовой информацией. Интерактивная визуализация в Plotly оказалась значительно удобнее для исследования 3D-структур по сравнению со статичной в Matplotlib.
+
+\item \textbf{Задание 4}: Освоены основные операции работы со скалярными полями: создание, преобразование, сглаживание, вычисление градиента, фильтрация. Эти операции являются фундаментальными для анализа пространственных данных.
+\end{enumerate}
+\subsection{Заключение}
+\label{sec:orgc9a10a7}
+
+В ходе выполнения заданий 2 и 4 были успешно освоены ключевые аспекты работы с облаками точек: визуализация с использованием цветовой информации и обработка скалярных полей. Реализованные методы и алгоритмы образуют базовый инструментарий для работы с трёхмерными данными, который может быть расширен и адаптирован для решения конкретных прикладных задач в компьютерном зрении, робототехнике, геодезии и других областях.
+\end{document}
