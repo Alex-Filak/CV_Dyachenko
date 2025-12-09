@@ -7,7 +7,10 @@ RUN mkdir -p /home/jovyan/work && \
     chown -R ${NB_UID}:${NB_GID} /home/jovyan/work
 
 # Install plotly
-RUN pip install --no-cache-dir plotly plyfile scipy
+RUN mamba install --yes -c conda-forge \
+    plotly \
+    plyfile \
+    && mamba clean --all -f -y
 
 # Switch back to jovyan user
 USER ${NB_UID}
