@@ -2,23 +2,12 @@ FROM jupyter/datascience-notebook
 
 USER root
 
+# Create work directory if it doesn't exist
 RUN mkdir -p /home/jovyan/work && \
     chown -R ${NB_UID}:${NB_GID} /home/jovyan/work
 
-RUN conda install --quiet --yes -c conda-forge \
-    plotly \
-    plyfile \
-    scipy \
-    h5py \
-    tqdm \
-    seaborn \
-    scikit-learn \
-    && conda clean --all -f -y
+# Install plotly
+RUN pip install --no-cache-dir plotly plyfile scipy
 
-RUN pip install --no-cache-dir \
-    torch \
-    torchvision \
-    open3d \
-    ipywidgets
-
+# Switch back to jovyan user
 USER ${NB_UID}
