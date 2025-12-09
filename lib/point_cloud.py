@@ -654,6 +654,7 @@ class PointsCloud:
                 backend: str = 'matplotlib',
                 title: str = "Point Cloud",
                 figsize: Tuple[int, int] = (10, 8),
+                save: Optional[bool] = False,
                 **kwargs):
         """
         Visualize the point cloud in 2D or 3D with flexible coloring and sizing.
@@ -772,15 +773,15 @@ class PointsCloud:
         # Dispatch to backend
         if backend == 'matplotlib':
             self._vis_matplotlib(coords, final_colors, color_is_rgb, final_sizes,
-                                n_plot_dims, title, figsize, **kwargs)
+                                 n_plot_dims, title, figsize, save, **kwargs)
         elif backend == 'plotly':
             self._vis_plotly(coords, final_colors, color_is_rgb, final_sizes,
-                            n_plot_dims, title, **kwargs)
+                             n_plot_dims, title, save, **kwargs)
         else:
             raise ValueError(f"Unsupported backend: {backend}")
 
     def _vis_matplotlib(self, coords, colors, color_is_rgb, sizes,
-                    n_dims, title, figsize, **kwargs):
+                        n_dims, title, figsize, save=False, **kwargs):
         import matplotlib.pyplot as plt
 
         fig = plt.figure(figsize=figsize)
@@ -831,9 +832,12 @@ class PointsCloud:
 
         plt.title(title)
         plt.tight_layout()
+        if save:
+            plt.savefig(f"{title}.png")
+
         plt.show()
 
-    def _vis_plotly(self, coords, colors, color_is_rgb, sizes, n_dims, title, **kwargs):
+    def _vis_plotly(self, coords, colors, color_is_rgb, sizes, n_dims, title, save=False, **kwargs):
         try:
             import plotly.graph_objects as go
         except ImportError:
@@ -891,6 +895,8 @@ class PointsCloud:
             width=800,
             height=600
         )
+        if save:
+            fig.write_image(f"{title}.png")
         fig.show()
 
 
