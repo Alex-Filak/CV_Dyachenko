@@ -14,12 +14,13 @@ FEATURE_TRANSFORM = True
 BATCH_SIZE = 32
 NUM_EPOCHS = 50
 TRAIN_FRAC = 0.8
+NUM_WORKERS = 0
 LEARNING_RATE = 0.001
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 # Output settings
 OUTPUT_DIR = "data"
-MODEL_SAVE_PATH = f"{OUTPUT_DIR}/pointnet_{DATASET_NAME.lower()}.pth"
+MODEL_PATH = f"{OUTPUT_DIR}/pointnet_{DATASET_NAME.lower()}.pth"
 
 # Visualization
 CLASS_NAMES = [
