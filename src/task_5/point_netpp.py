@@ -125,8 +125,9 @@ class PointNet(nn.Module):
 
         return x, input_transform, feature_transform
 
-class ModelNetDataset(Dataset):
-    def __init__(self, points, labels, augment=False):
+# C3DIS dataset class
+class S3DISDataset(Dataset):
+    def __init__(sefl, points, labels, augment=False):
         self.points = points
         self.labels = labels
         self.augment = augment
@@ -138,9 +139,9 @@ class ModelNetDataset(Dataset):
         theta = np.random.uniform(0, 2 * np.pi)
         rotation_matrix = np.array([
             [np.cos(theta), -np.sin(theta), 0],
-            [np.sin(theta), np.cos(theta), 0],
+            [np.sin(theta), np.cos(theta),  0],
             [0, 0, 1]
-        ])
+            ])
 
         scale = np.random.uniform(0.8, 1.2)
 
@@ -153,8 +154,10 @@ class ModelNetDataset(Dataset):
         if np.random.rand() > 0.5:
             num_points = xyz.shape[0]
             keep_idx = np.random.choice(num_points, int(num_points * np.random.uniform(0.9, 1.0)), replace=False)
+
             xyz = xyz[keep_idx]
             rgb = rgb[keep_idx]
+
             if len(keep_idx) < num_points:
                 duplicate_idx = np.random.choice(len(keep_idx), num_points - len(keep_idx), replace=True)
                 xyz = np.vstack([xyz, xyz[duplicate_idx]])
@@ -166,11 +169,16 @@ class ModelNetDataset(Dataset):
         pointcloud = self.points[idx].copy()
         label = self.labels[idx]
 
+
         if self.augment:
             pointcloud = self.augment_pointcloud(pointcloud)
 
-        return torch.from_numpy(pointcloud).float(), torch.tensor(label).long()
-
+        return{
+            'points': torch.from_numpy(pointcloud).float(),
+            'labels': torch.from_numpy(label).long() if isinstance(label, np.ndarryay) else
+            torch.tensor(label).long()
+            }
+    
 # Convert mesh to point cloud
 def read_off(filename):
     with open(filename, 'r') as f:
