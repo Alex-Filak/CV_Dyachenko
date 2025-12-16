@@ -29,43 +29,28 @@ def feature_transform_regularizer(trans):
     loss = torch.mean(torch.norm(torch.bmm(trans, trans.transpose(2, 1)) - I, dim=(1, 2)))
     return loss
 
-class TNet(nn.Module):
-    def __init__(self, k=3):
-        super(TNet, self).__init__()
-        self.k = k
-        self.conv1 = nn.Conv1d(k, 64, 1)
-        self.conv2 = nn.Conv1d(64, 128, 1)
-        self.conv3 = nn.Conv1d(128, 1024, 1)
-        self.fc1 = nn.Linear(1024, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, k * k)
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(128)
-        self.bn3 = nn.BatchNorm1d(1024)
-        self.bn4 = nn.BatchNorm1d(512)
-        self.bn5 = nn.BatchNorm1d(256)
+# PointNet++ specific modules
+def farthest_point_sample(xyz, npoint):
+    device = xyz.device
+    B, N, C = xyz.shape
+    centroids = torch.zeros(B, npoint, dtype=torch.long).to(device)
+    distance = torch.ones(B, N).to(device) * 1e10
+    farthest = torch.randint(0, N, (B,), dtype=torch.long).to(device)
+    batch_indices = torch.arange(B, dtype=torch.long).to(device)
+    
+    for i in range(npoint):
+        centroids[:, i] = farthest
+        centroid = xyz[batch_indices, farthest, :].view(B, 1, 3)
+        dist = torch.sum((xyz - centroid) ** 2, -1)
+        mask = dist < distance
+        distance[mask] = dist[mask]
+        farthest = torch.max(distance, -1)[1]
+    
+    return centroids
 
-        self.fc3.bias.data.zero_()
-        self.fc3.bias.data[:k*k].copy_(torch.eye(k).view(-1))
 
-    def forward(self, x):
-        batch_size = x.size(0)
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
 
-        x = torch.max(x, 2, keepdim=True)[0]
 
-        x = x.view(-1, 1024)
-        x = F.relu(self.bn4(self.fc1(x)))
-        x = F.relu(self.bn5(self.fc2(x)))
-        x = self.fc3(x)
-
-        # Identity transformation
-        identity = torch.eye(self.k, device=x.device).view(1, self.k*self.k).repeat(batch_size, 1)
-        x = x + identity
-        x = x.view(-1, self.k, self.k)
-        return x
 
 class PointNetSetAbstraction(nn.Module):
     def __init__(self, npoint, radius, nsample, in_channel, mlp, group_all=False):
@@ -104,6 +89,48 @@ class PointNetSetAbstraction(nn.Module):
         
         return new_xyz, new_points
 
+class PointNetFeaturePropagation(nn.Module):
+    def __init__(self, in_channel, mlp):
+        super(PointNetFeaturePropagation, self).__init__()
+        self.mlp_convs = nn.ModuleList()
+        self.mlp_bns = nn.ModuleList()
+        last_channel = in_channel
+        
+        for out_channel in mlp:
+            self.mlp_convs.append(nn.Conv1d(last_channel, out_channel, 1))
+            self.mlp_bns.append(nn.BatchNorm1d(out_channel))
+            last_channel = out_channel
+
+    def forward(self, xyz1, xyz2, points1, points2):
+        xyz1 = xyz1.permute(0, 2, 1).contiguous()
+        xyz2 = xyz2.permute(0, 2, 1).contiguous()
+        
+        B, N, C = xyz1.shape
+        _, S, _ = xyz2.shape
+
+        if S == 1:
+            interpolated_points = points2.repeat(1, 1, N)
+        else:
+            dists = square_distance(xyz1, xyz2)
+            dists, idx = torch.topk(dists, 3, dim=-1, largest=False)
+            
+            dist_recip = 1.0 / (dists + 1e-8)
+            norm = torch.sum(dist_recip, dim=2, keepdim=True)
+            weight = dist_recip / norm
+            
+            interpolated_points = torch.sum(index_points(points2.permute(0, 2, 1).contiguous(), idx) * weight.view(B, N, 3, 1), dim=2)
+            interpolated_points = interpolated_points.permute(0, 2, 1).contiguous()
+        
+        if points1 is not None:
+            new_points = torch.cat([points1, interpolated_points], dim=1)
+        else:
+            new_points = interpolated_points
+        
+        for i, conv in enumerate(self.mlp_convs):
+            bn = self.mlp_bns[i]
+            new_points = F.relu(bn(conv(new_points)))
+        
+        return new_points
     
 # C3DIS dataset class
 class S3DISDataset(Dataset):
