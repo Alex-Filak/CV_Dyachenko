@@ -13,7 +13,7 @@ os.makedirs(os.path.join(DRIVE_PROJECT_ROOT, "outputs"), exist_ok=True)
 # Dataset parameters
 NUM_POINTS = 4096
 NUM_CLASSES = 13
-INPUT_CHANNELS = 6
+INPUT_CHANNELS = 3
 
 # Training parameters
 BATCH_SIZE = 8   # 16
