@@ -10,6 +10,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
+import pandas as pd
 
 import torch
 import torch.nn as nn
@@ -80,7 +81,6 @@ def square_distance(src, dst):
     dist += torch.sum(dst ** 2, -1).view(B, 1, M)
     return dist
 
-
 class PointNetSetAbstraction(nn.Module):
     def __init__(self, npoint, radius, nsample, in_channel, mlp, group_all=False):
         super(PointNetSetAbstraction, self).__init__()
@@ -122,15 +122,12 @@ def sample_and_group(npoint, radius, nsample, xyz, points):
     B, N, C = xyz.shape
     S = npoint
     
-    # Farthest Point Sampling
     centroids_idx = farthest_point_sample(xyz, S)
     new_xyz = index_points(xyz, centroids_idx)
     
-    # Ball Query for grouping
     idx = query_ball_point(radius, nsample, xyz, new_xyz)
     grouped_xyz = index_points(xyz, idx)
     
-    # Normalize by subtracting centroid
     grouped_xyz_norm = grouped_xyz - new_xyz.view(B, S, 1, C)
     
     if points is not None:
@@ -182,7 +179,10 @@ class PointNetFeaturePropagation(nn.Module):
             norm = torch.sum(dist_recip, dim=2, keepdim=True)
             weight = dist_recip / norm
             
-            interpolated_points = torch.sum(index_points(points2.permute(0, 2, 1).contiguous(), idx) * weight.view(B, N, 3, 1), dim=2)
+            interpolated_points = torch.sum(
+                index_points(points2.permute(0, 2, 1).contiguous(), idx) * weight.view(B, N, 3, 1), 
+                dim=2
+            )
             interpolated_points = interpolated_points.permute(0, 2, 1).contiguous()
         
         if points1 is not None:
@@ -197,111 +197,134 @@ class PointNetFeaturePropagation(nn.Module):
         return new_points
 
 class PointNet2Seg(nn.Module):
-    def __init__(self, num_classes=13, input_channels=6):  # 13 classes for S3DIS
+    def __init__(self, num_classes=NUM_CLASSES, input_channels=INPUT_CHANNELS):
         super(PointNet2Seg, self).__init__()
         
         # Encoder (Set Abstraction layers)
         self.sa1 = PointNetSetAbstraction(
-            npoint=1024, radius=0.1, nsample=32, 
-            in_channel=input_channels, mlp=[32, 32, 64]
+            npoint=SA_PARAMS[0]['npoint'],
+            radius=SA_PARAMS[0]['radius'],
+            nsample=SA_PARAMS[0]['nsample'],
+            in_channel=input_channels,
+            mlp=SA_PARAMS[0]['mlp']
         )
         
         self.sa2 = PointNetSetAbstraction(
-            npoint=256, radius=0.2, nsample=32, 
-            in_channel=64 + 3, mlp=[64, 64, 128]
+            npoint=SA_PARAMS[1]['npoint'],
+            radius=SA_PARAMS[1]['radius'],
+            nsample=SA_PARAMS[1]['nsample'],
+            in_channel=SA_PARAMS[0]['mlp'][-1] + 3,
+            mlp=SA_PARAMS[1]['mlp']
         )
         
         self.sa3 = PointNetSetAbstraction(
-            npoint=64, radius=0.4, nsample=32, 
-            in_channel=128 + 3, mlp=[128, 128, 256]
+            npoint=SA_PARAMS[2]['npoint'],
+            radius=SA_PARAMS[2]['radius'],
+            nsample=SA_PARAMS[2]['nsample'],
+            in_channel=SA_PARAMS[1]['mlp'][-1] + 3,
+            mlp=SA_PARAMS[2]['mlp']
         )
         
         self.sa4 = PointNetSetAbstraction(
-            npoint=16, radius=0.8, nsample=32, 
-            in_channel=256 + 3, mlp=[256, 256, 512]
+            npoint=SA_PARAMS[3]['npoint'],
+            radius=SA_PARAMS[3]['radius'],
+            nsample=SA_PARAMS[3]['nsample'],
+            in_channel=SA_PARAMS[2]['mlp'][-1] + 3,
+            mlp=SA_PARAMS[3]['mlp']
         )
         
         # Decoder (Feature Propagation layers)
         self.fp4 = PointNetFeaturePropagation(
-            in_channel=512 + 256, mlp=[256, 256]
+            in_channel=FP_PARAMS[0]['in_channel'],
+            mlp=FP_PARAMS[0]['mlp']
         )
         
         self.fp3 = PointNetFeaturePropagation(
-            in_channel=256 + 128, mlp=[256, 256]
+            in_channel=FP_PARAMS[1]['in_channel'],
+            mlp=FP_PARAMS[1]['mlp']
         )
         
         self.fp2 = PointNetFeaturePropagation(
-            in_channel=256 + 64, mlp=[256, 128]
+            in_channel=FP_PARAMS[2]['in_channel'],
+            mlp=FP_PARAMS[2]['mlp']
         )
         
         self.fp1 = PointNetFeaturePropagation(
-            in_channel=128 + input_channels, mlp=[128, 128, 128]
+            in_channel=FP_PARAMS[3]['in_channel'],
+            mlp=FP_PARAMS[3]['mlp']
         )
         
         # Final segmentation head
-        self.conv1 = nn.Conv1d(128, 128, 1)
-        self.bn1 = nn.BatchNorm1d(128)
+        self.conv1 = nn.Conv1d(HEAD_MLP[0], HEAD_MLP[1], 1)
+        self.bn1 = nn.BatchNorm1d(HEAD_MLP[1])
         self.drop1 = nn.Dropout(0.5)
-        self.conv2 = nn.Conv1d(128, num_classes, 1)
+        self.conv2 = nn.Conv1d(HEAD_MLP[1], num_classes, 1)
 
     def forward(self, xyz):
-        # Extract coordinates and features
         if xyz.shape[2] > 3:
-            xyz_coords = xyz[:, :, :3].transpose(1, 2).contiguous()  # [B, 3, N]
-            points = xyz[:, :, 3:].transpose(1, 2).contiguous()  # [B, C-3, N]
-            l0_points = torch.cat([xyz_coords, points], dim=1) if points is not None else xyz_coords
+            xyz_coords = xyz[:, :, :3].transpose(1, 2).contiguous()
+            points = xyz[:, :, 3:].transpose(1, 2).contiguous()
+            l0_points = torch.cat([xyz_coords, points], dim=1)
         else:
             xyz_coords = xyz.transpose(1, 2).contiguous()
             l0_points = xyz_coords
         
         # Encoding path
-        l1_xyz, l1_points = self.sa1(xyz_coords, l0_points)  # [B, 3, 1024], [B, 64, 1024]
-        l2_xyz, l2_points = self.sa2(l1_xyz, l1_points)      # [B, 3, 256], [B, 128, 256]
-        l3_xyz, l3_points = self.sa3(l2_xyz, l2_points)      # [B, 3, 64], [B, 256, 64]
-        l4_xyz, l4_points = self.sa4(l3_xyz, l3_points)      # [B, 3, 16], [B, 512, 16]
+        l1_xyz, l1_points = self.sa1(xyz_coords, l0_points)
+        l2_xyz, l2_points = self.sa2(l1_xyz, l1_points)
+        l3_xyz, l3_points = self.sa3(l2_xyz, l2_points)
+        l4_xyz, l4_points = self.sa4(l3_xyz, l3_points)
         
         # Decoding path
-        l3_points = self.fp4(l3_xyz, l4_xyz, l3_points, l4_points)  # [B, 256, 64]
-        l2_points = self.fp3(l2_xyz, l3_xyz, l2_points, l3_points)  # [B, 256, 256]
-        l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)  # [B, 128, 1024]
-        l0_points = self.fp1(xyz_coords, l1_xyz, None, l1_points)   # [B, 128, N]
+        l3_points = self.fp4(l3_xyz, l4_xyz, l3_points, l4_points)
+        l2_points = self.fp3(l2_xyz, l3_xyz, l2_points, l3_points)
+        l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)
+        l0_points = self.fp1(xyz_coords, l1_xyz, None, l1_points)
         
         # Segmentation head
         x = F.relu(self.bn1(self.conv1(l0_points)))
         x = self.drop1(x)
-        seg_pred = self.conv2(x)  # [B, num_classes, N]
+        seg_pred = self.conv2(x)
         
         return seg_pred
-    
-# C3DIS dataset class
+
 class S3DISDataset(Dataset):
-    def __init__(sefl, points, labels, augment=False):
+    def __init__(self, points, labels, num_points=NUM_POINTS, augment=False):
         self.points = points
         self.labels = labels
+        self.num_points = num_points
         self.augment = augment
 
     def __len__(self):
         return len(self.points)
 
     def augment_pointcloud(self, pointcloud):
-        theta = np.random.uniform(0, 2 * np.pi)
-        rotation_matrix = np.array([
-            [np.cos(theta), -np.sin(theta), 0],
-            [np.sin(theta), np.cos(theta),  0],
-            [0, 0, 1]
+        if AUGMENT_ROTATION:
+            theta = np.random.uniform(0, 2 * np.pi)
+            rotation_matrix = np.array([
+                [np.cos(theta), -np.sin(theta), 0],
+                [np.sin(theta), np.cos(theta), 0],
+                [0, 0, 1]
+            ])
+            xyz = pointcloud[:, :3] @ rotation_matrix.T
+        else:
+            xyz = pointcloud[:, :3]
+        
+        scale = np.random.uniform(*AUGMENT_SCALE)
+        xyz = xyz * scale
+        
+        xyz += np.clip(
+            AUGMENT_JITTER * np.random.randn(*xyz.shape),
+            -2 * AUGMENT_JITTER,
+            2 * AUGMENT_JITTER
+        )
 
-
-        scale = np.random.uniform(0.8, 1.2)
-
-        xyz = pointcloud[:, :3]
         rgb = pointcloud[:, 3:]
-
-        xyz = (xyz @ rotation_matrix.T) * scale
-        xyz += np.clip(0.01 * np.random.randn(*xyz.shape), -0.02, 0.02)
-
+        
         if np.random.rand() > 0.5:
             num_points = xyz.shape[0]
-            keep_idx = np.random.choice(num_points, int(num_points * np.random.uniform(0.9, 1.0)), replace=False)
+            keep_ratio = np.random.uniform(*AUGMENT_DROPOUT)
+            keep_idx = np.random.choice(num_points, int(num_points * keep_ratio), replace=False)
 
             xyz = xyz[keep_idx]
             rgb = rgb[keep_idx]
@@ -317,17 +340,29 @@ class S3DISDataset(Dataset):
         pointcloud = self.points[idx].copy()
         label = self.labels[idx]
 
+        if isinstance(label, np.ndarray) and label.ndim == 1 and len(label) == 1:
+            label = np.full(pointcloud.shape[0], label[0])
+        elif isinstance(label, (int, np.integer)):
+            label = np.full(pointcloud.shape[0], label)
+        
+        if pointcloud.shape[0] > self.num_points:
+            indices = np.random.choice(pointcloud.shape[0], self.num_points, replace=False)
+            pointcloud = pointcloud[indices]
+            label = label[indices]
+        elif pointcloud.shape[0] < self.num_points:
+            # Pad with zeros if needed (though S3DIS should be uniform)
+            pad_size = self.num_points - pointcloud.shape[0]
+            pointcloud = np.pad(pointcloud, ((0, pad_size), (0, 0)), mode='constant')
+            label = np.pad(label, (0, pad_size), mode='constant')
 
         if self.augment:
             pointcloud = self.augment_pointcloud(pointcloud)
 
-        return{
+        return {
             'points': torch.from_numpy(pointcloud).float(),
-            'labels': torch.from_numpy(label).long() if isinstance(label, np.ndarryay) else
-            torch.tensor(label).long()
-            }
-    
-# Convert mesh to point cloud
+            'labels': torch.from_numpy(label).long()
+        }
+
 def read_off(filename):
     with open(filename, 'r') as f:
         header = f.readline().strip()
@@ -349,7 +384,7 @@ def read_off(filename):
     
     return np.array(verts)
 
-def mesh_to_pointcloud(mesh_path, num_points=1024):
+def mesh_to_pointcloud(mesh_path, num_points=NUM_POINTS):
     try:
         vertices = read_off(mesh_path)
         
@@ -377,37 +412,15 @@ def mesh_to_pointcloud(mesh_path, num_points=1024):
         print(f"Skipping {mesh_path}: {e}")
         return None
 
-def download_dataset(dest_dir="ModelNet10"):
-    if os.path.exists(dest_dir):
-        print(f"✅ {dest_dir} already exists!")
-        return
-
-    url = "http://3dvision.princeton.edu/projects/2014/3DShapeNets/ModelNet10.zip"
-    zip_path = "ModelNet10.zip"
-    
-    response = requests.get(url, stream=True)
-    total_size = int(response.headers.get('content-length', 0))
-    
-    with open(zip_path, 'wb') as f:
-        for chunk in tqdm(response.iter_content(chunk_size=8192), total=total_size//8192):
-            f.write(chunk)
-    
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(".")
-
 def prepare_dataset():
-    # Ensure directories exist
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     
     if os.path.exists(DATA_PATH):
         return
 
-
-    modelnet_path = "ModelNet10"
+    modelnet_path = "../../data/Stanford3dDataset_v1.2"
     if not os.path.exists(modelnet_path):
-        download_dataset()
-        if not os.path.exists(modelnet_path):
-            raise FileNotFoundError(f"ModelNet10 not found at {modelnet_path} even after download attempt")
+        raise FileNotFoundError(f"Dataset not found at {modelnet_path}")
 
     classes = [i for i in os.listdir(modelnet_path) 
                if os.path.isdir(os.path.join(modelnet_path, i)) and not i.startswith('.')]
@@ -423,15 +436,14 @@ def prepare_dataset():
         cls_idx = class_to_idx[cls]
         print(f"\nProcessing class: {cls}")
 
-        # Process train and test examples 
         for split in ["train", "test"]:
             dir_path = os.path.join(modelnet_path, cls, split)
             if not os.path.exists(dir_path):
-                print(f"  ⚠️ {split} directory not found for {cls}, skipping")
+                print(f"{split} directory not found for {cls}, skipping")
                 continue
                 
             files = [i for i in os.listdir(dir_path) if i.endswith('.off')]
-            print(f"  Found {len(files)} .off files in {split} set")
+            print(f"Found {len(files)} .off files in {split} set")
             
             for i in tqdm(files[:20], desc=f"{split} - {cls}"):
                 mesh_path = os.path.join(dir_path, i)
@@ -442,15 +454,14 @@ def prepare_dataset():
                         all_points.append(points_colors)
                         all_labels.append(cls_idx)
                     else:
-                        print(f"  ⚠️ Failed to process {mesh_path}")
+                        print(f"Failed to process {mesh_path}")
 
                 except Exception as e:
-                    print(f"  ❌ Error processing {mesh_path}: {e}")
+                    print(f"Error processing {mesh_path}: {e}")
 
     if len(all_points) == 0:
         raise RuntimeError("No valid point clouds were processed. Check your dataset paths and file formats.")
 
-    # Save as HDF5
     all_points = np.array(all_points, dtype=np.float32)
     all_labels = np.array(all_labels, dtype=np.int64)
 
@@ -459,13 +470,10 @@ def prepare_dataset():
         file.create_dataset('labels', data=all_labels)
         file.create_dataset('classes', data=np.array(classes, dtype='S'))
 
-
-# Training function    
 def train():
     os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
-    # Load dataset
     with h5py.File(DATA_PATH, 'r') as file:
         points = file['points'][:]
         labels = file['labels'][:]
@@ -473,276 +481,268 @@ def train():
         if 'classes' in file:
             classes = [name.decode('utf-8') for name in file['classes'][:]]
         else:
-            classes = [
-                'bathtub', 'bed', 'chair', 'desk', 'dresser',
-                'monitor', 'night_stand', 'sofa', 'table', 'toilet'
-            ]
-
+            classes = S3DIS_CLASSES
+    
+    print(f"Original labels shape: {labels.shape}")
+    print(f"Points per sample: {points.shape[1]}")
+    
+    per_point_labels = np.array([
+        np.full(points.shape[1], labels[i]) for i in range(len(labels))
+    ])
+    print(f"Converted labels shape: {per_point_labels.shape}")
+    
     if points.shape[0] == 0:
         raise RuntimeError("HDF5 file is empty! Rebuild dataset.")
-
-    # Create dataset 
-    dataset = ModelNetDataset(points, labels, augment=True)
-    train_size = int(TRAIN_FRAC * len(dataset))
-    test_size = len(dataset) - train_size
-    print(f"Dataset split: {train_size} training, {test_size} testing samples")
-
-    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
-
+    
+    dataset = S3DISDataset(points, per_point_labels, num_points=NUM_POINTS, augment=True)
+    total_size = len(dataset)
+    
+    train_size = int(0.7 * total_size)
+    val_size = int(0.15 * total_size)
+    test_size = total_size - train_size - val_size
+    
+    print(f"Dataset split: {train_size} training, {val_size} validation, {test_size} testing samples")
+    
+    train_dataset, val_dataset, test_dataset = random_split(
+        dataset, [train_size, val_size, test_size]
+    )
+    
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
-
-    # Initialize model
-    model = PointNet(num_classes=len(classes)).to(DEVICE)
+    
+    num_classes = len(classes)
+    model = PointNet2Seg(num_classes=num_classes, input_channels=INPUT_CHANNELS).to(DEVICE)
+    
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
-
-    # Training history
-    train_losses, test_losses = [], []
-    train_accs, test_accs = [], []
-    best_acc = 0
-
-    print(f"Starting training on {DEVICE} for {NUM_EPOCHS} epochs")
-
+    
+    train_losses, val_losses = [], []
+    train_oa, val_oa = [], []
+    train_miou, val_miou = [], []
+    
+    best_miou = 0
+    best_epoch = 0
+    
+    print(f"Starting PointNet++ segmentation training on {DEVICE}")
+    print(f"Number of classes: {num_classes}")
+    print(f"Classes: {classes}")
+    
     for epoch in range(NUM_EPOCHS):
         model.train()
-        total_loss, correct, total = 0, 0, 0
-
+        total_loss = 0
+        total_correct = 0
+        total_points = 0
+        confusion_mat = torch.zeros(num_classes, num_classes, device=DEVICE)
+        
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS} [Train]")
-        for data, target in progress_bar:
-            data, target = data.to(DEVICE), target.to(DEVICE)
+        for batch in progress_bar:
+            data = batch['points'].to(DEVICE)
+            target = batch['labels'].to(DEVICE)
+            
             optimizer.zero_grad()
-
-            # Forward pass
-            output, input_transform, feature_transform = model(data)
-            loss = criterion(output, target)
-            loss += 0.001 * feature_transform_regularizer(input_transform)
-            loss += 0.001 * feature_transform_regularizer(feature_transform)
-
-            # Backward pass
+            seg_pred = model(data)
+            seg_pred = seg_pred.transpose(1, 2).contiguous()
+            loss = criterion(seg_pred.view(-1, num_classes), target.view(-1))
             loss.backward()
             optimizer.step()
-
-            # Statistics
+            
             total_loss += loss.item()
-            pred = output.argmax(dim=1, keepdim=True)
-            correct += pred.eq(target.view_as(pred)).sum().item()  # CORRECTED: was resetting instead of accumulating
-            total += target.size(0)
-
-            # Update progress bar
+            pred = seg_pred.argmax(dim=2)
+            correct = (pred == target).sum().item()
+            total_correct += correct
+            total_points += target.numel()
+            
+            for cls_true in range(num_classes):
+                for cls_pred in range(num_classes):
+                    confusion_mat[cls_true, cls_pred] += (
+                        ((target == cls_true) & (pred == cls_pred)).sum().item()
+                    )
+            
+            current_oa = 100. * correct / target.numel()
             progress_bar.set_postfix({
-                'loss': f"{total_loss/len(train_loader):.4f}",
-                'acc': f"{100.*correct/total:.2f}%"
+                'loss': f"{loss.item():.4f}",
+                'OA': f"{current_oa:.2f}%"
             })
-
+        
         train_loss = total_loss / len(train_loader)
-        train_acc = 100. * correct / total
+        train_accuracy = 100. * total_correct / total_points
+        
+        train_iou_per_class = []
+        for i in range(num_classes):
+            tp = confusion_mat[i, i].item()
+            fp = confusion_mat[:, i].sum().item() - tp
+            fn = confusion_mat[i, :].sum().item() - tp
+            iou = tp / (tp + fp + fn) if (tp + fp + fn) > 0 else 0.0
+            train_iou_per_class.append(iou)
+        
+        train_miou_value = np.mean(train_iou_per_class) * 100
+        
         train_losses.append(train_loss)
-        train_accs.append(train_acc)
-
-        # Evaluation
+        train_oa.append(train_accuracy)
+        train_miou.append(train_miou_value)
+        
         model.eval()
-        total_loss, correct, total = 0, 0, 0
-        all_preds, all_targets = [], []
-
+        val_total_loss = 0
+        val_total_correct = 0
+        val_total_points = 0
+        val_confusion_mat = torch.zeros(num_classes, num_classes, device=DEVICE)
+        
         with torch.no_grad():
-            for data, target in tqdm(test_loader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS} [Eval]", leave=False):
-                data, target = data.to(DEVICE), target.to(DEVICE)
-                output, _, _ = model(data)
-                loss = criterion(output, target)
-                total_loss += loss.item()
-
-                pred = output.argmax(dim=1, keepdim=True)
-                correct += pred.eq(target.view_as(pred)).sum().item()
-                total += target.size(0)
-
-                all_preds.extend(pred.cpu().numpy())
-                all_targets.extend(target.cpu().numpy())
-
-        test_loss = total_loss / len(test_loader)
-        test_acc = 100. * correct / total
-        test_losses.append(test_loss)
-        test_accs.append(test_acc)
-
-        print(f"Epoch {epoch+1}/{NUM_EPOCHS}, "
-              f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, "
-              f"Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.2f}%")
-
-        # Save best model
-        if test_acc > best_acc:
-            best_acc = test_acc
+            for batch in tqdm(val_loader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS} [Val]", leave=False):
+                data = batch['points'].to(DEVICE)
+                target = batch['labels'].to(DEVICE)
+                
+                seg_pred = model(data)
+                seg_pred = seg_pred.transpose(1, 2).contiguous()
+                loss = criterion(seg_pred.view(-1, num_classes), target.view(-1))
+                val_total_loss += loss.item()
+                
+                pred = seg_pred.argmax(dim=2)
+                val_total_correct += (pred == target).sum().item()
+                val_total_points += target.numel()
+                
+                for cls_true in range(num_classes):
+                    for cls_pred in range(num_classes):
+                        val_confusion_mat[cls_true, cls_pred] += (
+                            ((target == cls_true) & (pred == cls_pred)).sum().item()
+                        )
+        
+        val_loss = val_total_loss / len(val_loader)
+        val_accuracy = 100. * val_total_correct / val_total_points
+        
+        val_iou_per_class = []
+        for i in range(num_classes):
+            tp = val_confusion_mat[i, i].item()
+            fp = val_confusion_mat[:, i].sum().item() - tp
+            fn = val_confusion_mat[i, :].sum().item() - tp
+            iou = tp / (tp + fp + fn) if (tp + fp + fn) > 0 else 0.0
+            val_iou_per_class.append(iou)
+        
+        val_miou_value = np.mean(val_iou_per_class) * 100
+        
+        val_losses.append(val_loss)
+        val_oa.append(val_accuracy)
+        val_miou.append(val_miou_value)
+        
+        print(f"\nEpoch {epoch+1}/{NUM_EPOCHS}:")
+        print(f"  Train Loss: {train_loss:.4f}, Train OA: {train_accuracy:.2f}%, Train mIoU: {train_miou_value:.2f}%")
+        print(f"  Val Loss: {val_loss:.4f}, Val OA: {val_accuracy:.2f}%, Val mIoU: {val_miou_value:.2f}%")
+        
+        print("  Per-class IoU (Val):")
+        for i, (cls_name, iou) in enumerate(zip(classes, val_iou_per_class)):
+            print(f"    {cls_name:15s}: {iou*100:6.2f}%")
+        
+        if val_miou_value > best_miou:
+            best_miou = val_miou_value
+            best_epoch = epoch + 1
+            
             torch.save({
                 'epoch': epoch + 1,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'accuracy': test_acc,
-                'classes': classes
+                'val_miou': val_miou_value,
+                'val_oa': val_accuracy,
+                'train_miou': train_miou_value,
+                'train_oa': train_accuracy,
+                'classes': classes,
+                'per_class_iou': val_iou_per_class
             }, MODEL_PATH)
-            best_preds = np.array(all_preds)
-            best_targets = np.array(all_targets)
-            print(f"💯 New best model saved with accuracy: {best_acc:.2f}%")
-
+            
+            print(f"  💯 New best model saved with mIoU: {best_miou:.2f}%")
+        
         scheduler.step()
-
-    # Plot training history
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(train_losses, label='Train Loss')
-    plt.plot(test_losses, label='Test Loss')
+    
+    print("\n" + "="*50)
+    print("FINAL TESTING ON TEST SET")
+    print("="*50)
+    
+    checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.eval()
+    
+    test_total_correct = 0
+    test_total_points = 0
+    test_confusion_mat = torch.zeros(num_classes, num_classes, device=DEVICE)
+    all_predictions = []
+    all_targets = []
+    
+    with torch.no_grad():
+        for batch in tqdm(test_loader, desc="Testing"):
+            data = batch['points'].to(DEVICE)
+            target = batch['labels'].to(DEVICE)
+            
+            seg_pred = model(data)
+            seg_pred = seg_pred.transpose(1, 2).contiguous()
+            pred = seg_pred.argmax(dim=2)
+            
+            test_total_correct += (pred == target).sum().item()
+            test_total_points += target.numel()
+            
+            all_predictions.append(pred.cpu())
+            all_targets.append(target.cpu())
+            
+            for cls_true in range(num_classes):
+                for cls_pred in range(num_classes):
+                    test_confusion_mat[cls_true, cls_pred] += (
+                        ((target == cls_true) & (pred == cls_pred)).sum().item()
+                    )
+    
+    test_accuracy = 100. * test_total_correct / test_total_points
+    
+    test_iou_per_class = []
+    for i in range(num_classes):
+        tp = test_confusion_mat[i, i].item()
+        fp = test_confusion_mat[:, i].sum().item() - tp
+        fn = test_confusion_mat[i, :].sum().item() - tp
+        iou = tp / (tp + fp + fn) if (tp + fp + fn) > 0 else 0.0
+        test_iou_per_class.append(iou)
+    
+    test_miou_value = np.mean(test_iou_per_class) * 100
+    
+    print(f"\nTest Results:")
+    print(f"  Overall Accuracy (OA): {test_accuracy:.2f}%")
+    print(f"  Mean IoU (mIoU): {test_miou_value:.2f}%")
+    print(f"\nPer-class IoU:")
+    for i, (cls_name, iou) in enumerate(zip(classes, test_iou_per_class)):
+        print(f"  {cls_name:15s}: {iou*100:6.2f}%")
+    
+    plt.figure(figsize=(15, 5))
+    
+    plt.subplot(1, 3, 1)
+    plt.plot(train_losses, label='Train Loss', marker='o')
+    plt.plot(val_losses, label='Val Loss', marker='s')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
-    plt.title('Training and Test Loss')
+    plt.title('Training and Validation Loss')
     plt.legend()
-
-    plt.subplot(1, 2, 2)
-    plt.plot(train_accs, label='Train Accuracy')
-    plt.plot(test_accs, label='Test Accuracy')
+    plt.grid(True, alpha=0.3)
+    
+    plt.subplot(1, 3, 2)
+    plt.plot(train_oa, label='Train OA', marker='o')
+    plt.plot(val_oa, label='Val OA', marker='s')
     plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
-    plt.title('Training and Test Accuracy')
+    plt.ylabel('Overall Accuracy (%)')
+    plt.title('Training and Validation OA')
     plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    plt.subplot(1, 3, 3)
+    plt.plot(train_miou, label='Train mIoU', marker='o')
+    plt.plot(val_miou, label='Val mIoU', marker='s')
+    plt.xlabel('Epoch')
+    plt.ylabel('Mean IoU (%)')
+    plt.title('Training and Validation mIoU')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
     
     plt.tight_layout()
     plt.savefig(os.path.join(OUTPUT_DIR, "training_history.png"))
     plt.close()
-
-    # Plot confusion matrix
-    cm = confusion_matrix(best_targets, best_preds)
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                xticklabels=classes, 
-                yticklabels=classes)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Confusion Matrix')
-    plt.xticks(rotation=45, ha='right')
-    plt.yticks(rotation=0)
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'confusion_matrix.png'))
-    plt.close()
     
-    return model, classes, test_dataset, best_preds, best_targets
-
-def visualize_predictions(model, test_dataset, classes, num_examples=5):
-    model.eval()
-    # Get random indices from test dataset
-    indices = np.random.choice(len(test_dataset), min(num_examples, len(test_dataset)), replace=False)
-
-    plt.figure(figsize=(15, 10))
-    for i, idx in enumerate(indices):
-        points, label = test_dataset[idx]
-        points_batch = points.unsqueeze(0).to(DEVICE)
-        
-        with torch.no_grad():
-            output, _, _ = model(points_batch)
-        
-        pred = output.argmax(dim=1).item()
-        points_np = points.cpu().numpy()
-        
-        ax = plt.subplot(2, 3, i+1, projection='3d')
-        x, y, z = points_np[:, 0], points_np[:, 1], points_np[:, 2]
-        colors = points_np[:, 3:6]
-        if colors.max() > 1:
-            colors = colors / 255.0
-        
-        ax.scatter(x, y, z, c=colors, s=1, alpha=0.6)
-        title = f"True: {classes[label]}\nPred: {classes[pred]}"
-        if pred != label:
-            title += " (INCORRECT)"
-        ax.set_title(title, fontsize=9)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.set_zticks([])
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'predictions.png'))
-    plt.close()
-
-    try:
-        for idx in indices[:3]:
-            points, label = test_dataset[idx]
-            points_batch = points.unsqueeze(0).to(DEVICE)
-            
-            with torch.no_grad():
-                output, _, _ = model(points_batch)
-            
-            pred = output.argmax(dim=1).item()
-            points_np = points.cpu().numpy()
-            
-            pcd = o3d.geometry.PointCloud()
-            pcd.points = o3d.utility.Vector3dVector(points_np[:, :3])
-            
-            colors = points_np[:, 3:6]
-            if colors.max() > 1:
-                colors = colors / 255.0
-            pcd.colors = o3d.utility.Vector3dVector(colors)
-            
-            title = f"True: {classes[label]}, Pred: {classes[pred]}"
-            if pred != label:
-                title += " (INCORRECT)"
-            
-            vis = o3d.visualization.Visualizer()
-            vis.create_window(window_name=title, width=800, height=600)
-            vis.add_geometry(pcd)
-            vis.poll_events()
-            vis.update_renderer()
-            
-            screenshot_path = os.path.join(OUTPUT_DIR, f'interactive_{idx}.png')
-            vis.capture_screen_image(screenshot_path)
-            vis.destroy_window()
-            print(f"Interactive visualization screenshot saved: {screenshot_path}")
-            
-    except Exception as e:
-        print("Visualization skiped.")
+    print(f"\nTraining history plot saved to {os.path.join(OUTPUT_DIR, 'training_history.png')}")
 
 if __name__ == "__main__":
-    print(f"Using device: {DEVICE}")
-
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
-    
-    # Download and prepare dataset
-    download_dataset()
     prepare_dataset()
-    
-    # Train model
-    model, classes, test_dataset, best_preds, best_targets = train()
-    
-    # Load best model
-    checkpoint = torch.load(MODEL_PATH)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    
-    # Visualize predictions
-    visualize_predictions(model, test_dataset, classes)
-    
-    cm = confusion_matrix(best_targets, best_preds)
-    class_accuracies = cm.diagonal() / cm.sum(axis=1)
-    worst_classes = np.argsort(class_accuracies)[:3]
-    
-    
-    # Save results for download
-    result_files = [
-        MODEL_PATH,
-        os.path.join(OUTPUT_DIR, "training_history.png"),
-        os.path.join(OUTPUT_DIR, "confusion_matrix.png"),
-        os.path.join(OUTPUT_DIR, "predictions.png"),
-        DATA_PATH
-    ]
-    
-    # Filter out files that don't exist
-    existing_files = [f for f in result_files if os.path.exists(f)]
-    
-    zip_path = os.path.join(OUTPUT_DIR, "pointnet_results.zip")
-    with zipfile.ZipFile(zip_path, 'w') as zf:
-        for f in existing_files:
-            zf.write(f, os.path.basename(f))
-    
-    print(f"Results saved to {zip_path}")
-    
-    # Download in Colab
-    try:
-        from google.colab import files
-        files.download(zip_path)
-    except Exception as e:
-        print("Error while loading files from colab")
+    train()
