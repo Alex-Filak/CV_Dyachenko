@@ -118,6 +118,41 @@ class PointNetSetAbstraction(nn.Module):
         
         return new_xyz, new_points
 
+def sample_and_group(npoint, radius, nsample, xyz, points):
+    B, N, C = xyz.shape
+    S = npoint
+    
+    # Farthest Point Sampling
+    centroids_idx = farthest_point_sample(xyz, S)
+    new_xyz = index_points(xyz, centroids_idx)
+    
+    # Ball Query for grouping
+    idx = query_ball_point(radius, nsample, xyz, new_xyz)
+    grouped_xyz = index_points(xyz, idx)
+    
+    # Normalize by subtracting centroid
+    grouped_xyz_norm = grouped_xyz - new_xyz.view(B, S, 1, C)
+    
+    if points is not None:
+        grouped_points = index_points(points, idx)
+        new_points = torch.cat([grouped_xyz_norm, grouped_points], dim=-1)
+    else:
+        new_points = grouped_xyz_norm
+    
+    return new_xyz, new_points
+
+def sample_and_group_all(xyz, points):
+    B, N, C = xyz.shape
+    new_xyz = torch.zeros(B, 1, C).to(xyz.device)
+    grouped_xyz = xyz.view(B, 1, N, C)
+    
+    if points is not None:
+        new_points = torch.cat([grouped_xyz, points.view(B, 1, N, -1)], dim=-1)
+    else:
+        new_points = grouped_xyz
+    
+    return new_xyz, new_points
+
 class PointNetFeaturePropagation(nn.Module):
     def __init__(self, in_channel, mlp):
         super(PointNetFeaturePropagation, self).__init__()
