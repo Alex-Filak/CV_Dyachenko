@@ -1,0 +1,21 @@
+# requirements.txt
+
+# Core Data & Numerical
+numpy>=1.21.0
+h5py>=3.0.0
+
+# Deep Learning
+torch>=1.9.0
+
+# 3D Point Cloud Processing
+open3d>=0.13.0
+
+# Progress Bars & Utilities
+tqdm>=4.62.0
+
+# Visualization
+matplotlib>=3.4.0
+plotly>=5.0.0
+
+# Machine Learning Metrics
+scikit-learn>=0.24.0
