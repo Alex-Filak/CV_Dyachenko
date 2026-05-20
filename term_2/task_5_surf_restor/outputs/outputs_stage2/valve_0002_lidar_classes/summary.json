@@ -1,0 +1,221 @@
+[
+  {
+    "cloud_id": "valve_0002_lidar_classes",
+    "segment_count": 11,
+    "successful_segments": 11,
+    "failed_segments": 0,
+    "metrics": {
+      "removed_segments": [],
+      "class_counts": {
+        "complex": 6,
+        "planar": 2,
+        "tubular": 3
+      },
+      "method_counts": {
+        "poisson": 6,
+        "alpha_shapes": 2,
+        "ball_pivoting": 3
+      }
+    },
+    "segments": [
+      {
+        "segment_id": 0,
+        "success": true,
+        "method_used": "poisson",
+        "metrics": {
+          "vertex_count": 2044.0,
+          "triangle_count": 3911.0,
+          "success": 1.0,
+          "mean_point_to_mesh": 0.0195579968581342,
+          "max_point_to_mesh": 0.05763908315717863,
+          "mean_mesh_to_point": 0.06409748201485603,
+          "chamfer_like": 0.08365547887299023,
+          "coverage_at_2x_knn": 0.958139534883721,
+          "mesh_components": 1.0,
+          "largest_component_triangles": 3911.0
+        },
+        "errors": []
+      },
+      {
+        "segment_id": 1,
+        "success": true,
+        "method_used": "poisson",
+        "metrics": {
+          "vertex_count": 2122.0,
+          "triangle_count": 4057.0,
+          "success": 1.0,
+          "mean_point_to_mesh": 0.015172710458489808,
+          "max_point_to_mesh": 0.039193904262953085,
+          "mean_mesh_to_point": 0.02465305978966777,
+          "chamfer_like": 0.039825770248157574,
+          "coverage_at_2x_knn": 0.96875,
+          "mesh_components": 3.0,
+          "largest_component_triangles": 4049.0
+        },
+        "errors": []
+      },
+      {
+        "segment_id": 1,
+        "success": true,
+        "method_used": "poisson",
+        "metrics": {
+          "vertex_count": 4088.0,
+          "triangle_count": 7989.0,
+          "success": 1.0,
+          "mean_point_to_mesh": 0.020220001376586246,
+          "max_point_to_mesh": 0.05665941700739513,
+          "mean_mesh_to_point": 0.1019718074056117,
+          "chamfer_like": 0.12219180878219794,
+          "coverage_at_2x_knn": 0.964859437751004,
+          "mesh_components": 3.0,
+          "largest_component_triangles": 7975.0
+        },
+        "errors": []
+      },
+      {
+        "segment_id": 200,
+        "success": true,
+        "method_used": "alpha_shapes",
+        "metrics": {
+          "vertex_count": 4206.0,
+          "triangle_count": 8687.0,
+          "success": 1.0,
+          "mean_point_to_mesh": 0.018402749812440625,
+          "max_point_to_mesh": 0.05377738949227176,
+          "mean_mesh_to_point": 0.011136646080091335,
+          "chamfer_like": 0.02953939589253196,
+          "coverage_at_2x_knn": 0.9800295857988166,
+          "mesh_components": 6.0,
+          "largest_component_triangles": 8680.0
+        },
+        "errors": []
+      },
+      {
+        "segment_id": 300,
+        "success": true,
+        "method_used": "ball_pivoting",
+        "metrics": {
+          "vertex_count": 103.0,
+          "triangle_count": 161.0,
+          "success": 1.0,
+          "mean_point_to_mesh": 0.015941359131060432,
+          "max_point_to_mesh": 0.061835888110979405,
+          "mean_mesh_to_point": 0.012520301491662302,
+          "chamfer_like": 0.028461660622722734,
+          "coverage_at_2x_knn": 0.9174757281553398,
+          "mesh_components": 1.0,
+          "largest_component_triangles": 161.0
+        },
+        "errors": []
+      },
+      {
+        "segment_id": 303,
+        "success": true,
+        "method_used": "ball_pivoting",
+        "metrics": {
+          "vertex_count": 60.0,
+          "triangle_count": 80.0,
+          "success": 1.0,
+          "mean_point_to_mesh": 0.01978756357861338,
+          "max_point_to_mesh": 0.0946825835197062,
+          "mean_mesh_to_point": 0.01326281721130489,
+          "chamfer_like": 0.033050380789918274,
+          "coverage_at_2x_knn": 0.9105691056910569,
+          "mesh_components": 1.0,
+          "largest_component_triangles": 80.0
+        },
+        "errors": []
+      },
+      {
+        "segment_id": 4,
+        "success": true,
+        "method_used": "ball_pivoting",
+        "metrics": {
+          "vertex_count": 59.0,
+          "triangle_count": 87.0,
+          "success": 1.0,
+          "mean_point_to_mesh": 0.018171553550882905,
+          "max_point_to_mesh": 0.04840624193878642,
+          "mean_mesh_to_point": 0.014186161000403989,
+          "chamfer_like": 0.032357714551286894,
+          "coverage_at_2x_knn": 0.9482758620689655,
+          "mesh_components": 1.0,
+          "largest_component_triangles": 87.0
+        },
+        "errors": []
+      },
+      {
+        "segment_id": 5,
+        "success": true,
+        "method_used": "poisson",
+        "metrics": {
+          "vertex_count": 3892.0,
+          "triangle_count": 7592.0,
+          "success": 1.0,
+          "mean_point_to_mesh": 0.009871231368136018,
+          "max_point_to_mesh": 0.03540849179071601,
+          "mean_mesh_to_point": 0.010545745567611878,
+          "chamfer_like": 0.020416976935747896,
+          "coverage_at_2x_knn": 0.9646504320502749,
+          "mesh_components": 1.0,
+          "largest_component_triangles": 7592.0
+        },
+        "errors": []
+      },
+      {
+        "segment_id": 600,
+        "success": true,
+        "method_used": "alpha_shapes",
+        "metrics": {
+          "vertex_count": 1177.0,
+          "triangle_count": 2369.0,
+          "success": 1.0,
+          "mean_point_to_mesh": 0.012797270367374648,
+          "max_point_to_mesh": 0.04660483300094457,
+          "mean_mesh_to_point": 0.01299075594173852,
+          "chamfer_like": 0.025788026309113168,
+          "coverage_at_2x_knn": 0.9790633608815427,
+          "mesh_components": 1.0,
+          "largest_component_triangles": 2369.0
+        },
+        "errors": []
+      },
+      {
+        "segment_id": 700,
+        "success": true,
+        "method_used": "poisson",
+        "metrics": {
+          "vertex_count": 10737.0,
+          "triangle_count": 21115.0,
+          "success": 1.0,
+          "mean_point_to_mesh": 0.01450463207530727,
+          "max_point_to_mesh": 0.08590889088285511,
+          "mean_mesh_to_point": 0.013241208324256884,
+          "chamfer_like": 0.027745840399564153,
+          "coverage_at_2x_knn": 0.9480853251092264,
+          "mesh_components": 1.0,
+          "largest_component_triangles": 21115.0
+        },
+        "errors": []
+      },
+      {
+        "segment_id": 800,
+        "success": true,
+        "method_used": "poisson",
+        "metrics": {
+          "vertex_count": 3204.0,
+          "triangle_count": 6257.0,
+          "success": 1.0,
+          "mean_point_to_mesh": 0.022900292575392004,
+          "max_point_to_mesh": 0.05751511231973366,
+          "mean_mesh_to_point": 0.14145680552330522,
+          "chamfer_like": 0.16435709809869722,
+          "coverage_at_2x_knn": 0.9664268585131894,
+          "mesh_components": 1.0,
+          "largest_component_triangles": 6257.0
+        },
+        "errors": []
+      }
+    ]
+  }
+]
